@@ -29,7 +29,7 @@ namespace py = pybind11;
 PYBIND11_MODULE(nixl_bindings, m) {
 
     //TODO: each nixl class and/or function can be documented in place
-    m.doc() = "pybind11 NIXL plugin: Implements NIXL desciptors and lists, soon Agent API as well";
+    m.doc() = "pybind11 NIXL plugin: Implements NIXL descriptors and lists, soon Agent API as well";
 
     //cast types
     py::enum_<nixl_mem_t>(m, "nixl_mem_t")
@@ -90,8 +90,9 @@ PYBIND11_MODULE(nixl_bindings, m) {
                 list[i] = nixlBasicDesc(desc[0].cast<uintptr_t>(), desc[1].cast<size_t>(), desc[2].cast<uint32_t>());
             })
         .def("addDesc", [](nixl_xfer_dlist_t &list, const py::tuple &desc) {
-                nixlBasicDesc newDesc(desc[0].cast<uintptr_t>(), desc[1].cast<size_t>(), desc[2].cast<uint32_t>());
-                newDesc.print("bdesc");
+                list.addDesc(nixlBasicDesc(desc[0].cast<uintptr_t>(), desc[1].cast<size_t>(), desc[2].cast<uint32_t>()));
+            })
+        .def("append", [](nixl_xfer_dlist_t &list, const py::tuple &desc) {
                 list.addDesc(nixlBasicDesc(desc[0].cast<uintptr_t>(), desc[1].cast<size_t>(), desc[2].cast<uint32_t>()));
             })
         .def("remDesc", &nixl_xfer_dlist_t::remDesc)
@@ -142,14 +143,12 @@ PYBIND11_MODULE(nixl_bindings, m) {
                 list[i] = nixlStringDesc(desc[0].cast<uintptr_t>(), desc[1].cast<size_t>(), desc[2].cast<uint32_t>(), desc[3].cast<std::string>());
             })
         .def("addDesc", [](nixl_reg_dlist_t &list, const py::tuple &desc) {
-                uintptr_t addr = desc[0].cast<uintptr_t>();
-                size_t size = desc[1].cast<size_t>();
-                uint32_t dev_id = desc[2].cast<uint32_t>();
-                std::string meta = desc[3].cast<std::string>();
-                
-                nixlStringDesc newDesc(addr, size, dev_id, meta);
-
-                list.addDesc(newDesc);
+                list.addDesc(nixlStringDesc(desc[0].cast<uintptr_t>(), desc[1].cast<size_t>(),
+                                            desc[2].cast<uint32_t>(),desc[3].cast<std::string>()));
+            })
+        .def("append", [](nixl_reg_dlist_t &list, const py::tuple &desc) {
+                list.addDesc(nixlStringDesc(desc[0].cast<uintptr_t>(), desc[1].cast<size_t>(),
+                                            desc[2].cast<uint32_t>(),desc[3].cast<std::string>()));
             })
         .def("remDesc", &nixl_reg_dlist_t::remDesc)
         .def("verifySorted", &nixl_reg_dlist_t::verifySorted)
@@ -188,7 +187,7 @@ PYBIND11_MODULE(nixl_bindings, m) {
         .def("deregisterMem", [](nixlAgent &agent, nixl_reg_dlist_t descs, uintptr_t backend) -> nixl_status_t {
                     return agent.deregisterMem(descs, (nixlBackendH*) backend);
                 })
-         
+
         .def("makeConnection", &nixlAgent::makeConnection)
         //note: slight API change, python cannot receive values by passing refs, so handle must be returned
         .def("createXferReq", [](nixlAgent &agent,
@@ -202,7 +201,7 @@ PYBIND11_MODULE(nixl_bindings, m) {
                     nixl_status_t ret = agent.createXferReq(local_descs, remote_descs, remote_agent, notif_msg, operation, handle, (nixlBackendH*) backend);
                     if (ret != NIXL_SUCCESS) return (uintptr_t) nullptr;
                     else return (uintptr_t) handle;
-                }, py::arg("local_descs"), 
+                }, py::arg("local_descs"),
                    py::arg("remote_descs"), py::arg("remote_agent"),
                    py::arg("notif_msg"), py::arg("operation"),
                    py::arg("backend") = ((uintptr_t) nullptr))
@@ -224,14 +223,18 @@ PYBIND11_MODULE(nixl_bindings, m) {
                                uintptr_t remote_side,
                                const std::vector<int> &remote_indices,
                                const std::string &notif_msg,
-                               const nixl_xfer_op_t &operation) -> uintptr_t {
+                               const nixl_xfer_op_t &operation,
+                               bool merge_descs) -> uintptr_t {
                     nixlXferReqH* handle;
                     nixl_status_t ret = agent.makeXferReq((nixlXferSideH*) local_side, local_indices,
                                                           (nixlXferSideH*) remote_side, remote_indices,
-                                                          notif_msg, operation, handle);
+                                                          notif_msg, operation, handle, merge_descs);
                     if (ret != NIXL_SUCCESS) return (uintptr_t) nullptr;
                     else return (uintptr_t) handle;
-                })
+                }, py::arg("local_side"), py::arg("local_indices"),
+                   py::arg("remote_side"), py::arg("remote_indices"),
+                   py::arg("notif_msg"), py::arg("operation"),
+                   py::arg("merge_descs") = false )
         .def("invalidateXferReq", [](nixlAgent &agent, uintptr_t reqh) -> void {
                     agent.invalidateXferReq((nixlXferReqH*) reqh);
                 })
@@ -264,7 +267,7 @@ PYBIND11_MODULE(nixl_bindings, m) {
                                               const std::string &msg,
                                               uintptr_t backend) {
                     return agent.genNotif(remote_agent, msg, (nixlBackendH*) backend);
-                    
+
                 })
         .def("getLocalMD", [](nixlAgent &agent) {
                     //python can only interpret text strings

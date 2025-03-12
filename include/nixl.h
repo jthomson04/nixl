@@ -94,7 +94,8 @@ class nixlAgent {
                                    const std::vector<int> &remote_indices,
                                    const std::string &notif_msg,
                                    const nixl_xfer_op_t &operation,
-                                   nixlXferReqH* &req_handle) const;
+                                   nixlXferReqH* &req_handle,
+                                   const bool merge_descs = true) const;
 
         void invalidateXferSide (nixlXferSideH* side_handle) const;
 
