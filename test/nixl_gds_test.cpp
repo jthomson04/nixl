@@ -30,8 +30,7 @@
 #include <cerrno>
 #include <cstring>
 
-#define NUM_TRANSFERS 250
-#define SIZE 10485760
+#define SIZE (1048576 * 16)
 
 
 std::string generate_timestamped_filename(const std::string& base_name) {
@@ -47,22 +46,23 @@ std::string generate_timestamped_filename(const std::string& base_name) {
 int main(int argc, char *argv[])
 {
         nixl_status_t           ret = NIXL_SUCCESS;
-        void                    *addr[NUM_TRANSFERS];
+        void                    *addr[4096];
         std::string             role;
         int                     status = 0;
         int                     i;
-        int                     fd[NUM_TRANSFERS];
+        int                     fd[4096];
 
         nixlAgentConfig         cfg(true);
         nixl_b_params_t         params;
-        nixlStringDesc          buf[NUM_TRANSFERS];
-        nixlStringDesc          ftrans[NUM_TRANSFERS];
+        nixlStringDesc          buf[4096];
+        nixlStringDesc          ftrans[4096];
         nixlBackendH	        *gds;
 
         nixl_reg_dlist_t        vram_for_gds(VRAM_SEG);
         nixl_reg_dlist_t        file_for_gds(FILE_SEG, false);
-        nixlXferReqH            *treq;
+        nixlXferReqH            *treq, *treq_new;
         std::string             name;
+	int			num_transfers = 10;
 
         std::cout << "Starting Agent for " << "GDS Test Agent" << "\n";
         nixlAgent agent("GDSTester", cfg);
@@ -75,18 +75,19 @@ int main(int argc, char *argv[])
         /** Argument Parsing */
         if (argc < 2) {
                 std::cout <<"Enter the required arguments\n" << std::endl;
-                std::cout <<"Directory path " << std::endl;
+                std::cout <<"Directory path <NUM_REQUESTS>" << std::endl;
                 exit(-1);
         }
+        std::string path = std::string(argv[1]);
+	if (argc > 2)
+		num_transfers = std::stoi(argv[2]);
 
-        for (i = 0; i < NUM_TRANSFERS; i++) {
+        for (i = 0; i < num_transfers; i++) {
                 cudaMalloc((void **)&addr[i], SIZE);
                 cudaMemset(addr[i], 'A', SIZE);
 		name = generate_timestamped_filename("testfile");
-	        std::string path = std::string(argv[1]);
 		name = path +"/"+ name +"_"+ std::to_string(i);
 
-		std::cout << "Opening File " << name << std::endl;
 		fd[i] = open(name.c_str(), O_RDWR|O_CREAT, 0744);
 	        if (fd[i] < 0) {
 		   std::cerr<<"Error: "<<strerror(errno)<<std::endl;
@@ -94,14 +95,6 @@ int main(int argc, char *argv[])
 	           std::cerr<<"Cannot run tests\n";
 	           return 1;
 		}
-	        std::cout << "Opened File " << name << std::endl;
-
-		std::cout << "Allocating for src buffer : "
-                          << addr[i] << ","
-                          << "Setting to As "
-                          << std::endl;
-                /* If O_CREATE is specified, mode flags need to be specified */
-                /* Use 0744 as mode */
                 buf[i].addr   = (uintptr_t)(addr[i]);
                 buf[i].len    = SIZE;
                 buf[i].devId  = 0;
@@ -125,6 +118,7 @@ int main(int argc, char *argv[])
                 exit(-1);
         }
 
+	std::cout << " **** WRITES with GDS Backend to File ** \n";
         std::cout << " Post the request with GDS backend\n ";
         status = agent.postXferReq(treq);
         std::cout << " GDS File IO has been posted\n";
@@ -137,10 +131,54 @@ int main(int argc, char *argv[])
         std::cout <<" Completed writing data using GDS backend\n";
         agent.invalidateXferReq(treq);
 
+	std::cout <<"**** Reads with GDS Backend to File \n";
+        for (i = 0; i < num_transfers; i++) {
+	    cudaMemset(addr[i], 0, SIZE);
+	}
+
+	ret = agent.createXferReq(vram_for_gds_list, file_for_gds_list,
+				  "GDSTester", "", NIXL_READ, treq_new);
+	if (ret != NIXL_SUCCESS) {
+		std::cerr << "Error in creating transfer request\n" << ret;
+		exit(-1);
+	}
+
+	std::cout << " Post the request with GDS backend\n ";
+        status = agent.postXferReq(treq_new);
+        std::cout << " GDS File IO has been posted\n";
+        std::cout << " Waiting for completion\n";
+
+        while (status != NIXL_XFER_DONE) {
+            status = agent.getXferStatus(treq_new);
+            assert(status != NIXL_XFER_ERR);
+        }
+        std::cout <<" Completed Reading data using GDS backend\n";
+
+	int err = 0;
+	std::cout <<"**** Verifying Reads after Writes \n";
+	for (i = 0; i < num_transfers; i++) {
+	    char *r_buffer = (char *)malloc(SIZE);
+	    cudaMemcpy(r_buffer, addr[i], SIZE, cudaMemcpyDeviceToHost);
+	    for (size_t i = 0; i < SIZE; i++) {
+		if (r_buffer[i] != 'A') {
+		   std::cerr<<"Mismatch during READS\n";
+		   free(r_buffer);
+		   err++;
+		   break;
+		}
+	    }
+	}
+	if (!err)
+	   std::cout << "Write and Read Successful for " << num_transfers
+		     <<" Requests\n";
+        agent.invalidateXferReq(treq_new);
+
         std::cout <<"Cleanup.. \n";
         agent.deregisterMem(vram_for_gds, gds);
         agent.deregisterMem(file_for_gds, gds);
-
+	for (i = 0; i < num_transfers; i++) {
+	    cudaFree(addr[i]);
+	}
         return 0;
 }
 
