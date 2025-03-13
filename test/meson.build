@@ -73,6 +73,11 @@ if not disable_gds_backend
                               dependencies: [nixl_dep, cuda_dep],
                               include_directories: [inc_dir, '../src/utils/serdes'],
                               install: true)
+
+    nixl_gds_perf = executable('nixl_gds_perf_test', 'nixl_gds_perf_test.cpp',
+                               dependencies: [nixl_dep, cuda_dep],
+                               include_directories: [inc_dir, '../src/utils/serdes'],
+                               install: true)
 endif
 
 plugin_test = executable('test_plugin',

@@ -154,6 +154,7 @@ int main(int argc, char *argv[])
         }
         std::cout <<" Completed Reading data using GDS backend\n";
 
+
 	int err = 0;
 	std::cout <<"**** Verifying Reads after Writes \n";
 	for (i = 0; i < num_transfers; i++) {
