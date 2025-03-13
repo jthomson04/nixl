@@ -41,10 +41,31 @@ std::string generate_timestamped_filename(const std::string& base_name) {
     return return_val;
 }
 
-void printStats(size_t block_size, size_t batch_size, double write_time,
-		double read_time) {
+void printStats(size_t block_size, size_t batch_size, int iterations,
+		double write_time, double read_time) {
 
+	size_t total_bytes = (block_size * batch_size * iterations);
 
+	std::cout << std::left << std::setw(20) << "Block Size (B)"
+              << std::setw(15) << "Batch Size"
+              << std::setw(15) << "Avg Write Lat. (us)"
+              << std::setw(15) << "Avg Write B/W (MiB/Sec)"
+	      << std::setw(15) << "Avg Read Lat. (us)"
+	      << std::setw(15) << "Avg Read B/w (MiB/Sec)" << std::endl;
+
+	std::cout << std::string(65, '-') << std::endl;
+
+	size_t avg_write_latency = (write_time)/(batch_size);
+	size_t avg_read_latency  = (read_time)/(batch_size);
+	size_t write_throughput  = ((total_bytes/ (1 <<20))/(write_time/1e6));
+	size_t read_throughput   = ((total_bytes/ (1 << 20))/(read_time/1e6));
+	std::cout << std::left << std::setw(20) << block_size
+              << std::setw(15) << batch_size
+              << std::setw(15) << avg_write_latency
+              << std::setw(15) << write_throughput
+	      << std::setw(15) << avg_read_latency
+	      << std::setw(15) << read_throughput
+	      << std::endl;
 }
 
 
@@ -66,6 +87,8 @@ int main(int argc, char *argv[]) {
 	int			size;
 	struct timeval		start_time, end_time;
 	struct timeval		write_time, read_time;
+	double			total_read_time = 0.0;
+	double			total_write_time = 0.0;
 
 	nixl_reg_dlist_t        vram_for_gds_read(VRAM_SEG);
 	nixl_reg_dlist_t        vram_for_gds(VRAM_SEG);
@@ -74,15 +97,16 @@ int main(int argc, char *argv[]) {
 	nixlXferReqH            *treq_read, *treq_write;
         std::string             name, path;
 	nixl_xfer_state_t	xstatus;
+	int			iterations;
 
 	if (argc < 4) {
 		std::cout << "Not enough arguments provided "<<std::endl;
 		std::cout << "<nixl_perf_bech> -p <path> -r <num_transfers > "
-			  << " -s <size> "<< std::endl;
+			  << " -s <size> -i <iterations> "<< std::endl;
 		exit(-1);
 	}
 
-	while ((option = getopt(argc, argv, "p:r:s:")) != -1) {
+	while ((option = getopt(argc, argv, "p:r:s:i:")) != -1) {
 	   switch (option) {
 	     case 'p':
 		path = optarg;
@@ -92,6 +116,9 @@ int main(int argc, char *argv[]) {
 		break;
 	     case 's':
 		size = std::stoi(optarg);
+		break;
+	     case 'i':
+		iterations = std::stoi(optarg);
 		break;
 	     case '?':
 		std::cerr <<"Error: Unknown option or missing argument."
@@ -180,46 +207,59 @@ int main(int argc, char *argv[]) {
 				   "", NIXL_READ, treq_read, false);
 	assert(status == NIXL_SUCCESS);
 
-	gettimeofday(&start_time, NULL);
-	xstatus = agent.postXferReq(treq_write);
-	assert(xstatus != NIXL_XFER_ERR);
-	nixl_xfer_state_t wr_state;
-	while (wr_state != NIXL_XFER_DONE) {
-            wr_state = agent.getXferStatus(treq_write);
-            assert(wr_state != NIXL_XFER_ERR);
-        }
-	gettimeofday(&end_time, NULL);
-	timersub(&end_time, &start_time, &write_time);
+	std::cout <<"Running tests for " << iterations <<" iterations"
+		<<std::endl;
+	for (int iter = 0; iter < iterations; iter++) {
 
-	gettimeofday(&start_time, NULL);
-	xstatus = agent.postXferReq(treq_read);
-	assert(xstatus != NIXL_XFER_ERR);
+		gettimeofday(&start_time, NULL);
+		xstatus = agent.postXferReq(treq_write);
+		assert(xstatus != NIXL_XFER_ERR);
+		nixl_xfer_state_t wr_state;
+		while (wr_state != NIXL_XFER_DONE) {
+	            wr_state = agent.getXferStatus(treq_write);
+		    assert(wr_state != NIXL_XFER_ERR);
+	        }
+		gettimeofday(&end_time, NULL);
+		timersub(&end_time, &start_time, &write_time);
+		total_write_time += ((write_time.tv_sec * 1000000) +
+				     write_time.tv_usec);
 
-	nixl_xfer_state_t rd_status;
-	while (rd_status != NIXL_XFER_DONE) {
-            rd_status = agent.getXferStatus(treq_read);
-            assert(rd_status != NIXL_XFER_ERR);
-        }
-	gettimeofday(&end_time, NULL);
-	timersub(&end_time, &start_time, &read_time);
+		gettimeofday(&start_time, NULL);
+		xstatus = agent.postXferReq(treq_read);
+		assert(xstatus != NIXL_XFER_ERR);
 
-	int err = 0;
-	std::cout <<"**** Verifying Reads after Writes \n";
-	for (i = 0; i < num_transfers; i++) {
-	    char *r_buffer = (char *)malloc(size);
-	    cudaMemcpy(r_buffer, addr_rd[i], size, cudaMemcpyDeviceToHost);
-	    for (int i = 0; i < size; i++) {
-		if (r_buffer[i] != 'A') {
-		   std::cerr<<"Mismatch during READS\n";
-		   free(r_buffer);
-		   err++;
-		   break;
+		nixl_xfer_state_t rd_status;
+		while (rd_status != NIXL_XFER_DONE) {
+		    rd_status = agent.getXferStatus(treq_read);
+	            assert(rd_status != NIXL_XFER_ERR);
 		}
-	    }
-	}
-	if (!err)
-	   std::cout << "Write and Read Successful for " << num_transfers
-		     <<" Requests\n";
+		gettimeofday(&end_time, NULL);
+		timersub(&end_time, &start_time, &read_time);
+		total_read_time += ((read_time.tv_sec * 1000000) +
+				    read_time.tv_usec);
 
+		int err = 0;
+		std::cout <<"**** Verifying Reads after Writes \n";
+		for (i = 0; i < num_transfers; i++) {
+		    char *r_buffer = (char *)malloc(size);
+		    cudaMemcpy(r_buffer, addr_rd[i], size,
+			       cudaMemcpyDeviceToHost);
+		    for (int i = 0; i < size; i++) {
+			if (r_buffer[i] != 'A') {
+			   std::cerr<<"Mismatch during READS\n";
+			   free(r_buffer);
+			   err++;
+			   break;
+			}
+	           }
+		}
+		if (!err) {
+		   std::cout << "Write and Read Successful for "
+			     << num_transfers
+			     <<" Requests\n";
+		}
+	}
+	printStats(size, num_transfers, iterations, total_write_time,
+		   total_read_time);
 	return 0;
 }
