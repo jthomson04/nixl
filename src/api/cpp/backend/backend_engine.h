@@ -67,7 +67,12 @@ class nixlBackendEngine {
 
         bool getInitErr() { return initErr; }
         nixl_backend_t getType () const { return backendType; }
-        nixl_b_params_t getCustomParams () const { return *customParams; }
+        nixl_b_params_t getCustomParams () const {
+            (*customParams)["Supports Remote"] = supportsRemote() ? "True" : "False";
+            (*customParams)["Supports Local"]  = supportsLocal()  ? "True" : "False";
+            (*customParams)["Supports Notif"]  = supportsNotif()  ? "True" : "False";
+            return *customParams;
+        }
 
         // The support function determine which methods are necessary by the child backend, and
         // if they're called by mistake, they will return error if not implemented by backend.
