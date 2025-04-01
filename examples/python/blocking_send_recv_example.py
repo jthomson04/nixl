@@ -63,43 +63,51 @@ if __name__ == "__main__":
         print("Memory registration failed.")
         exit()
 
-    # Exchange metadata
-    if args.mode == "target":
-        meta = agent.get_agent_metadata()
-        if not meta:
-            print("Acquiring metadata in target agent failed.")
-            exit()
+    # Exchange metadata. If socket is used (instead of genNotif) for target
+    # descriptors, only the initiator needs metadata of the target.
+    local_meta = agent.get_agent_metadata()
+    if not local_meta:
+        print("Acquiring local agent metadata failed.")
+        exit()
 
-        _socket.send(meta)
-        peer_name = _socket.recv_string()
-    else:
-        remote_meta = _socket.recv()
-        _socket.send_string(args.name)  # We just need the name, not full meta
+    _socket.send(local_meta)
+    remote_meta = _socket.recv()
 
-        peer_name = agent.add_remote_agent(remote_meta)
-        if not peer_name:
-            print("Loading target metadata in initiator agent failed.")
-            exit()
+    peer_name = agent.add_remote_agent(remote_meta)
+    if not peer_name:
+        print("Loading metadata from remote agent failed.")
+        exit()
+
+    print("My peer name is",peer_name)
 
     # Blocking send/recv (pull mode)
     if args.mode == "target":
-        # If desired, can use send_notif instead. Also indicate
-        # the notification that is expected to be received.
+        # Use same addresses for transfer as registration, just convert
         targer_descs = reg_descs.trim()
-        _socket.send(agent.get_serialized_descs(targer_descs))
-        # For now the notification is just UUID, could be any python bytes.
-        # Also can have more than UUID, and check_remote_xfer_done returns
-        # the full python bytes, here it would be just UUID.
-        while not agent.check_remote_xfer_done(peer_name, "UUID"):
+        # Can also indicate the notification that is expected to be received.
+        agent.send_notif(peer_name, str.encode("EXAMPLE_NOTIF, DESCS:") + agent.get_serialized_descs(targer_descs))
+        # The received notification can be any python bytes.
+        while not agent.check_remote_xfer_done(peer_name, "EXAMPLE_NOTIF"):
             continue
     else:
-        # If send_notif is used, get_new_notifs should listen for it,
-        # or directly calling check_remote_xfer_done
-        targer_descs = agent.deserialize_descs(_socket.recv())
+        # Use same addresses for transfer as registration, just convert
         initiator_descs = reg_descs.trim()
+        # wait for msg from target with its transfer descriptors
+        msg = {}
+        while not msg:
+            msg = agent.get_new_notifs()
+
+        if peer_name not in msg:
+            print ("Error, wrong message received")
+            exit()
+        msg = msg[peer_name]
+        notif = msg[0:msg.find(str.encode(","))]
+        print (notif)
+        print (msg[0:msg.find(str.encode(":"))])
+        targer_descs = agent.deserialize_descs(msg[msg.find(str.encode(":"))+1:])
 
         xfer_handle = agent.initialize_xfer(
-            "READ", initiator_descs, targer_descs, peer_name, "UUID"
+            "READ", initiator_descs, targer_descs, peer_name, "EXAMPLE_NOTIF"
         )
         if not xfer_handle:
             print("Creating transfer failed.")
