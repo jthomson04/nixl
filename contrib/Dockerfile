@@ -13,10 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+<<<<<<< Updated upstream
 ARG BASE_IMAGE="nvcr.io/nvidia/pytorch"
 ARG BASE_IMAGE_TAG="25.02-py3"
 
 FROM ${BASE_IMAGE}:${BASE_IMAGE_TAG}
+=======
+ARG BASE_IMAGE="nvcr.io/nvidia/cuda-dl-base"
+ARG BASE_IMAGE_TAG="25.01-cuda12.8-devel-ubuntu24.04"
+FROM ${BASE_IMAGE}:${BASE_IMAGE_TAG} AS dev
+>>>>>>> Stashed changes
 
 ARG MOFED_VERSION=24.10-1.1.4.0
 ARG UBUNTUOS=24.04
@@ -149,8 +155,38 @@ RUN echo "/usr/local/nixl/lib/x86_64-linux-gnu/plugins" >> /etc/ld.so.conf.d/nix
 ENV NIXL_PLUGIN_DIR=/usr/local/nixl/lib/x86_64-linux-gnu/plugins
 RUN ldconfig
 
-# Create the wheel
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-RUN pip3 install patchelf auditwheel
-RUN cd /opt/nixl && uv build --wheel --out-dir /workspace/dist
-RUN auditwheel repair /workspace/dist/nixl-*cp31*.whl --plat manylinux_2_39_x86_64
+RUN cd nixl && pip3 install --break-system-packages .
+
+# Replace existing wheel-builder stage with:
+FROM quay.io/pypa/manylinux_2_28_x86_64 AS wheel-builder
+
+# Install base dependencies
+RUN dnf install -y \
+    gcc-toolset-14 \
+    meson ninja-build \
+    glibc-devel.i686 \
+    && dnf clean all
+
+# Copy artifacts with dependency isolation
+COPY --from=dev /usr/local/ucx /usr/local/ucx
+COPY --from=dev /usr/local/ompi /usr/local/ompi
+COPY --from=dev /usr/local/nixl /usr/local/nixl
+COPY --from=dev /usr/local/cuda /usr/local/cuda
+COPY --from=dev /usr/include/ucp /usr/include/ucp
+COPY --from=dev /usr/include/ucs /usr/include/ucs
+
+ENV LD_LIBRARY_PATH=/usr/local/ucx/lib:$LD_LIBRARY_PATH \
+    PKG_CONFIG_PATH=/usr/local/ucx/lib/pkgconfig:$PKG_CONFIG_PATH \
+    LDFLAGS="-L/usr/local/ucx/lib -Wl,-rpath=/usr/local/ucx/lib -ldl -lpthread"
+
+
+ENV UCX_TLS=^cuda_ipc
+
+# Build setup
+WORKDIR /workspace/nixl
+COPY --from=dev /workspace/nixl .
+RUN /opt/python/cp312-cp312/bin/pip wheel .
+# Assuming libplugin_UCX.so is located in /usr/local/nixl/lib
+# ENV LD_LIBRARY_PATH=/usr/local/nixl/lib/x86_64-linux-gnu/plugins:$LD_LIBRARY_PATH
+
+# RUN auditwheel show nixl-0.1.0-cp312-cp312-linux_x86_64.whl
