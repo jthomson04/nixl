@@ -13,16 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-<<<<<<< Updated upstream
 ARG BASE_IMAGE="nvcr.io/nvidia/pytorch"
 ARG BASE_IMAGE_TAG="25.02-py3"
 
 FROM ${BASE_IMAGE}:${BASE_IMAGE_TAG}
-=======
-ARG BASE_IMAGE="nvcr.io/nvidia/cuda-dl-base"
-ARG BASE_IMAGE_TAG="25.01-cuda12.8-devel-ubuntu24.04"
-FROM ${BASE_IMAGE}:${BASE_IMAGE_TAG} AS dev
->>>>>>> Stashed changes
 
 ARG MOFED_VERSION=24.10-1.1.4.0
 ARG UBUNTUOS=24.04
