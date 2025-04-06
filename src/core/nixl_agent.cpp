@@ -241,6 +241,9 @@ nixlAgent::registerMem(const nixl_reg_dlist_t &descs,
 
     backend_list_t* backend_list;
     nixl_status_t   ret, ret2;
+    size_t i;
+    // remote_self use to be passed to loadLocalData
+    nixl_meta_dlist_t remote_self(descs.getType(), false);
 
     if (!extra_params || extra_params->backends.size() == 0) {
         backend_list = &data->memToBackend[descs.getType()];
@@ -253,22 +256,12 @@ nixlAgent::registerMem(const nixl_reg_dlist_t &descs,
     }
 
     // Can be replaced to best effort instead
-    for (size_t i=0; i<backend_list->size(); ++i) {
+    for (i=0; i<backend_list->size(); ++i) {
         nixlBackendEngine* backend = (*backend_list)[i];
-        // remote_self use to be passed to loadLocalData
-        nixl_meta_dlist_t remote_self(descs.getType(), false);
+
         ret = data->memorySection->addDescList(descs, backend, remote_self);
         if (ret != NIXL_SUCCESS) {
-            nixl_xfer_dlist_t trimmed = descs.trim();
-            // deregister with the previous backends
-            for (size_t j=0; j<i; ++j) {
-                ret2 = data->memorySection->populate(trimmed, (*backend_list)[j], remote_self);
-                if (ret2 == NIXL_SUCCESS)
-                    data->memorySection->remDescList(remote_self, (*backend_list)[j]);
-            }
-            if (extra_params && extra_params->backends.size() > 0)
-                delete backend_list;
-            return ret;
+            goto err_exit;
         } else {
             if (backend->supportsLocal()) {
                 if (data->remoteSections.count(data->name) == 0)
@@ -278,16 +271,7 @@ nixlAgent::registerMem(const nixl_reg_dlist_t &descs,
                 ret = data->remoteSections[data->name]->loadLocalData(
                                                         remote_self, backend);
                 if (ret != NIXL_SUCCESS) {
-                    nixl_xfer_dlist_t trimmed = descs.trim();
-                    // deregister with the previous backends
-                    for (size_t j=0; j<i; ++j) {
-                        ret2 = data->memorySection->populate(trimmed, (*backend_list)[j], remote_self);
-                        if (ret2 == NIXL_SUCCESS)
-                            data->memorySection->remDescList(remote_self, (*backend_list)[j]);
-                    }
-                    if (extra_params && extra_params->backends.size() > 0)
-                        delete backend_list;
-                    return ret;
+                    goto err_exit;
                 }
             }
         }
@@ -297,6 +281,18 @@ nixlAgent::registerMem(const nixl_reg_dlist_t &descs,
         delete backend_list;
 
     return NIXL_SUCCESS;
+err_exit:
+    nixl_xfer_dlist_t trimmed = descs.trim();
+
+    // deregister with the previous backends
+    for (size_t j=0; j<i; ++j) {
+        ret2 = data->memorySection->populate(trimmed, (*backend_list)[j], remote_self);
+        if (ret2 == NIXL_SUCCESS)
+            data->memorySection->remDescList(remote_self, (*backend_list)[j]);
+    }
+    if (extra_params && extra_params->backends.size() > 0)
+        delete backend_list;
+    return ret;
 }
 
 nixl_status_t
