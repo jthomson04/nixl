@@ -25,6 +25,7 @@ if 'UCX' in static_plugins
                'ucx_backend.cpp', 'ucx_backend.h', 'ucx_plugin.cpp',
                dependencies: [nixl_infra, ucx_utils_dep, serdes_interface, cuda_dep, ucx_dep],
                include_directories: nixl_inc_dirs,
+	       link_args: '-pthread',
                install: false,
                cpp_args : compile_flags,
                name_prefix: 'libplugin_')  # Custom prefix for plugin libraries
@@ -35,6 +36,7 @@ else
                include_directories: [nixl_inc_dirs, utils_inc_dirs],
                install: true,
                cpp_args : compile_flags + ['-fPIC'],
+	       link_args: '-pthread',
                name_prefix: 'libplugin_',  # Custom prefix for plugin libraries
                install_dir: plugin_install_dir)
 

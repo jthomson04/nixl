@@ -35,6 +35,7 @@ else
                'ucx_mo_backend.cpp', 'ucx_mo_backend.h', 'ucx_mo_plugin.cpp',
                dependencies: [nixl_infra, ucx_utils_dep, serdes_interface, cuda_dep, ucx_dep],
                link_with: [ucx_backend_lib],
+	       link_args: '-pthread',
                include_directories: [nixl_inc_dirs, utils_inc_dirs, ucx_backend_inc_dirs],
                install: true,
                cpp_args : compile_flags + ['-fPIC'],

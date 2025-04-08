@@ -29,4 +29,4 @@ authors = [
 ]
 
 [tool.meson-python.args]
-setup = ['-Dinstall_headers=false']
+setup = ['-Dcudapath_lib=/usr/local/cuda/lib64', '-Dcudapath_inc=/usr/local/cuda/include', '-Dinstall_headers=false']
