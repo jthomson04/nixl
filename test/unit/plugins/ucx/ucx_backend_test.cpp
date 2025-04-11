@@ -302,6 +302,93 @@ static string op2string(nixl_xfer_op_t op, bool hasNotif)
 }
 
 
+void perform10Transfer(nixlBackendEngine *ucx1, nixlBackendEngine *ucx2,
+                     nixl_meta_dlist_t &req_src_descs,
+                     nixl_meta_dlist_t &req_dst_descs,
+                     void* addr1, void* addr2, size_t len,
+                     nixl_xfer_op_t op, bool progress, bool use_notif)
+{
+    int ret2;
+    nixl_status_t ret3;
+    nixlBackendReqH* handle;
+    void *chkptr1, *chkptr2;
+
+    std::string remote_agent ("Agent2");
+
+    if(ucx1 == ucx2) remote_agent = "Agent1";
+
+    std::string test_str("test");
+    std::cout << "\t" << op2string(op, use_notif) << " from " << addr1 << " to " << addr2 << "\n";
+
+    nixl_opt_b_args_t opt_args;
+    opt_args.notifMsg = test_str;
+    opt_args.hasNotif = use_notif;
+
+    for(int j = 0; j< 10; j++) {
+        // Posting a request, to be updated to return an async handler,
+        // or an ID that later can be used to check the status as a new method
+        // Also maybe we would remove the WRITE and let the backend class decide the op
+        std::cout << "\t\tPosting Transfer " << j << endl;
+        ret3 = ucx1->postXfer(op, req_src_descs, req_dst_descs, remote_agent, handle, &opt_args);
+        assert( ret3 == NIXL_SUCCESS || ret3 == NIXL_IN_PROG);
+
+
+        if (ret3 == NIXL_SUCCESS) {
+            cout << "\t\tWARNING: Tansfer request completed immediately - no testing non-inline path" << endl;
+        } else {
+            cout << "\t\tNOTE: Testing non-inline Transfer path!" << endl;
+
+            while(ret3 == NIXL_IN_PROG) {
+                ret3 = ucx1->checkXfer(handle);
+                if(progress){
+                    ucx2->progress();
+                }
+                assert( ret3 == NIXL_SUCCESS || ret3 == NIXL_IN_PROG);
+            }
+        }
+
+
+        if(use_notif) {
+                /* Test notification path */
+            notif_list_t target_notifs;
+
+            cout << "\t\tChecking notification flow: " << flush;
+            ret2 = 0;
+
+            while(ret2 == 0){
+                ret3 = ucx2->getNotifs(target_notifs);
+                ret2 = target_notifs.size();
+                if(progress){
+                    ucx1->progress();
+                }
+                assert(ret3 == NIXL_SUCCESS);
+            }
+
+            assert(ret2 == 1);
+
+            assert(target_notifs.front().first == "Agent1");
+            assert(target_notifs.front().second == test_str);
+
+            cout << "OK" << endl;
+        }
+
+        cout << "\t\tData verification: " << flush;
+
+        chkptr1 = getValidationPtr(req_src_descs.getType(), addr1, len);
+        chkptr2 = getValidationPtr(req_dst_descs.getType(), addr2, len);
+
+        // Perform correctness check.
+        for(size_t i = 0; i < len; i++){
+            assert( ((uint8_t*) chkptr1)[i] == ((uint8_t*) chkptr2)[i]);
+        }
+
+        releaseValidationPtr(req_src_descs.getType(), chkptr1);
+        releaseValidationPtr(req_dst_descs.getType(), chkptr2);
+
+        cout << "OK" << endl;
+    }
+    ucx1->releaseReqH(handle);
+}
 
 void performTransfer(nixlBackendEngine *ucx1, nixlBackendEngine *ucx2,
                      nixl_meta_dlist_t &req_src_descs,
@@ -540,6 +627,11 @@ void test_inter_agent_transfer(bool p_thread,
             }
         }
     }
+
+    std::cout << "Performing repost test\n";
+    perform10Transfer(ucx1, ucx2, req_src_descs, req_dst_descs,
+                      addr1, addr2, len, NIXL_WRITE, true, true);
+    std::cout << "Repost test complete\n";
 
     cout << endl << "Test genNotif operation" << endl;
 
