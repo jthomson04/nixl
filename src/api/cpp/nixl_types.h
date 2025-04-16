@@ -19,6 +19,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <cstdint>
 
 
 /*** Forward declarations ***/
@@ -190,6 +191,9 @@ class nixlAgentOptionalArgs {
          *                    Note that invalidateLocalMD invalidates all labels and ignores this parameter.
          */
         std::string metadataLabel;
+         * @var Backend custom parameter
+         */
+        uintptr_t customParam;
 };
 /**
  * @brief A typedef for a nixlAgentOptionalArgs

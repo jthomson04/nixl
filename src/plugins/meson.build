@@ -30,3 +30,7 @@ libtransfer_engine = cc.find_library('transfer_engine', required: false)
 if libtransfer_engine.found() and not get_option('disable_mooncake_backend')
     subdir('mooncake')
 endif
+disable_doca_backend = get_option('disable_doca_backend')
+if not disable_doca_backend and cuda_dep.found()
+    subdir('doca')
+endif
