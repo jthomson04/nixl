@@ -16,9 +16,9 @@
  */
 #ifndef _NIXL_TYPES_H
 #define _NIXL_TYPES_H
-#include <vector>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 
 /*** Forward declarations ***/
@@ -36,13 +36,13 @@ class nixlAgentData;
  * @brief  An enumeration of segment types for NIXL
  *         FILE_SEG must be last
  */
-typedef enum {DRAM_SEG, VRAM_SEG, BLK_SEG, OBJ_SEG, FILE_SEG} nixl_mem_t;
+typedef enum { DRAM_SEG, VRAM_SEG, BLK_SEG, OBJ_SEG, FILE_SEG } nixl_mem_t;
 
 /**
  * @enum   nixl_xfer_op_t
  * @brief  An enumeration of different transfer types for NIXL
  */
-typedef enum {NIXL_READ, NIXL_WRITE} nixl_xfer_op_t;
+typedef enum { NIXL_READ, NIXL_WRITE } nixl_xfer_op_t;
 
 /**
  * @enum   nixl_status_t
@@ -67,11 +67,12 @@ typedef enum {
  * @brief     This namespace to get string representation
  *            of different enums
  */
-namespace nixlEnumStrings {
-    std::string memTypeStr(const nixl_mem_t &mem);
-    std::string xferOpStr (const nixl_xfer_op_t &op);
-    std::string statusStr (const nixl_status_t &status);
-}
+namespace nixlEnumStrings
+{
+std::string memTypeStr(const nixl_mem_t &mem);
+std::string xferOpStr(const nixl_xfer_op_t &op);
+std::string statusStr(const nixl_status_t &status);
+}  // namespace nixlEnumStrings
 
 
 /*** NIXL typedefs and defines used in the API ***/
@@ -110,30 +111,31 @@ typedef std::unordered_map<std::string, std::vector<nixl_blob_t>> nixl_notifs_t;
  * @class nixlAgentOptionalArgs
  * @brief A class for optional argument that can be provided to relevant agent methods.
  */
-class nixlAgentOptionalArgs {
-    public:
-        /**
-         * @var backends vector to specify a list of backend handles, to limit the list
-         *      of backends to be considered. Used in registerMem / deregisterMem
-         *      makeConnection / prepXferDlist / makeXferReq / createXferReq / GetNotifs / GenNotif
-         */
-        std::vector<nixlBackendH*> backends;
+class nixlAgentOptionalArgs
+{
+public:
+    /**
+     * @var backends vector to specify a list of backend handles, to limit the list
+     *      of backends to be considered. Used in registerMem / deregisterMem
+     *      makeConnection / prepXferDlist / makeXferReq / createXferReq / GetNotifs / GenNotif
+     */
+    std::vector<nixlBackendH*> backends;
 
-        /**
-         * @var notifMsg A message to be used in createXferReq / makeXferReq / postXferReq,
-         *               if a notification message is desired
-         */
-        nixl_blob_t notifMsg;
-        /**
-         * @var hasNotif boolean value to indicate that a notification is provided, or to
-         *      remove notification during a repost. If set to false, notifMsg is not checked.
-         */
-        bool hasNotif = false;
+    /**
+     * @var notifMsg A message to be used in createXferReq / makeXferReq / postXferReq,
+     *               if a notification message is desired
+     */
+    nixl_blob_t notifMsg;
+    /**
+     * @var hasNotif boolean value to indicate that a notification is provided, or to
+     *      remove notification during a repost. If set to false, notifMsg is not checked.
+     */
+    bool hasNotif = false;
 
-        /**
-         * @var makeXferReq boolean to skip merging consecutive descriptors, used in makeXferReq.
-         */
-        bool skipDescMerge = false;
+    /**
+     * @var makeXferReq boolean to skip merging consecutive descriptors, used in makeXferReq.
+     */
+    bool skipDescMerge = false;
 };
 /**
  * @brief A typedef for a nixlAgentOptionalArgs
