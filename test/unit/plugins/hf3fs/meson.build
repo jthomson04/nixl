@@ -1,4 +1,3 @@
-
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,11 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-subdir('ucx')
-subdir('ucx_mo')
-subdir('hf3fs')
-
-disable_gds_backend = get_option('disable_gds_backend')
-if not disable_gds_backend
-    subdir('cuda_gds')
-endif
+nixl_hf3fs_app = executable('nixl_hf3fs_test', 'nixl_hf3fs_test.cpp',
+                          dependencies: [nixl_dep, nixl_infra, hf3fs_dep],
+                          include_directories: [nixl_inc_dirs, utils_inc_dirs],
+                          install: true)
