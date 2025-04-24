@@ -17,6 +17,7 @@
 
 import argparse
 
+import time
 import torch
 
 from nixl._api import nixl_agent, nixl_agent_config
@@ -25,7 +26,8 @@ from nixl._bindings import nixlNotFoundError
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ip", type=str, required=True)
+    parser.add_argument("--etcd", type=bool, default=False)
+    parser.add_argument("--ip", type=str, default="127.0.0.1")
     parser.add_argument("--port", type=int, default=5555)
     parser.add_argument(
         "--mode",
@@ -61,11 +63,16 @@ if __name__ == "__main__":
 
     # Target code
     if args.mode == "target":
-        ready = False
 
         target_descs = reg_descs.trim()
         target_desc_str = agent.get_serialized_descs(target_descs)
 
+        if args.etcd:
+            agent.send_local_metadata()
+            time.sleep(1)
+            agent.fetch_remote_metadata("initiator")
+
+        ready = False
         # Send desc list to initiator when metadata is ready
         while not ready:
             try:
@@ -84,8 +91,14 @@ if __name__ == "__main__":
     # Initiator code
     else:
         print("Initiator sending to " + args.ip)
-        agent.fetch_remote_metadata("target", args.ip, args.port)
-        agent.send_local_metadata(args.ip, args.port)
+
+        if args.etcd:
+            agent.send_local_metadata()
+            time.sleep(1)
+            agent.fetch_remote_metadata("target")
+        else:
+            agent.send_local_metadata(args.ip, args.port)
+            agent.fetch_remote_metadata("target", args.ip, args.port)
 
         notifs = agent.get_new_notifs()
 
