@@ -1096,6 +1096,7 @@ nixlAgent::sendLocalPartialMD(nixl_reg_dlist_t &descs,
         std::cerr << "ETCD not supported yet, please specify IP\n";
         return NIXL_ERR_NOT_SUPPORTED;
     }
+
     nixl_blob_t myMD;
     nixl_status_t ret = getLocalPartialMD(descs, myMD, extra_params);
     if(ret < 0) return ret;
