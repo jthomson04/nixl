@@ -16,8 +16,8 @@
 # limitations under the License.
 
 import argparse
-
 import time
+
 import torch
 
 from nixl._api import nixl_agent, nixl_agent_config
@@ -113,7 +113,7 @@ if __name__ == "__main__":
         while not ready:
             try:
                 xfer_handle = agent.initialize_xfer(
-                    "READ", initiator_descs, target_descs, "target", "UUID"
+                    "READ", initiator_descs, target_descs, "target", b"UUID"
                 )
             except nixlNotFoundError:
                 ready = False
