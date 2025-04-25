@@ -1115,7 +1115,6 @@ nixlAgent::fetchRemoteMD (const std::string remote_name,
         std::cerr << "ETCD not supported yet, please specify IP\n";
         return NIXL_ERR_NOT_SUPPORTED;
     }
-
     data->enqueueCommWork(std::make_tuple(SOCK_FETCH, extra_params->ipAddr, extra_params->port, ""));
 
     return NIXL_SUCCESS;
