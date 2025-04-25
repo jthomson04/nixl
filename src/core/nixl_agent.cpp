@@ -1103,7 +1103,7 @@ nixlAgent::sendLocalPartialMD(nixl_reg_dlist_t &descs,
         return NIXL_SUCCESS;
     }
 
-    data->enqueueCommWork(std::make_tuple(SOCK_SEND, extra_params->ipAddr, send_port, myMD));
+    data->enqueueCommWork(std::make_tuple(SOCK_SEND, extra_params->ipAddr, extra_params->port, myMD));
 
     return NIXL_SUCCESS;
 
