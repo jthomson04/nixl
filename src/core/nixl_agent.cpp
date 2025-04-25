@@ -102,6 +102,7 @@ nixlAgent::nixlAgent(const std::string &name,
         data->commThreadStop = false;
         data->commThread = std::thread(&nixlAgentData::commWorker, data, this);
     }
+    //TODO: create etcd connection with environment variables
 }
 
 nixlAgent::~nixlAgent() {
@@ -111,6 +112,8 @@ nixlAgent::~nixlAgent() {
         if(data->listener) delete data->listener;
     }
     delete data;
+
+    //TODO: teardown ETCD connection?
 }
 
 nixl_status_t
