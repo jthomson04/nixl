@@ -1088,7 +1088,7 @@ nixlAgent::sendLocalMD (const nixl_opt_args_t* extra_params) const {
         return NIXL_SUCCESS;
     }
 
-    data->enqueueCommWork(std::make_tuple(SOCK_SEND, remote_ip, extra_params->port, myMD));
+    data->enqueueCommWork(std::make_tuple(SOCK_SEND, extra_params->ipAddr, extra_params->port, myMD));
 
     return NIXL_SUCCESS;
 }

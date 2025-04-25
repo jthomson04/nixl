@@ -352,27 +352,6 @@ class nixlAgent {
                            const nixl_opt_args_t* extra_params = nullptr) const;
 
         /**
-         * @brief  Send partial metadata blob for this agent to peer or central metadata server
-         *         If `descs` is empty, only backends' connection info is included in the metadata,
-         *         regardless of the value of `extra_params->includeConnInfo` and `descs` memory type.
-         *         If `descs` is non-empty, the metadata of the descriptors in the list are included,
-         *         and if `extra_params->includeConnInfo` is true, the connection info of the
-         *         backends supporting the memory type is also included.
-         *         If `extra_params->backends` is non-empty, only the descriptors supported by the
-         *         backends in the list and the backends' connection info are included in the metadata.
-         *         If 'extra_params->ip_addr' is set, the metadata will only be sent to a single peer.
-         *         If 'extra_params->port' can be set in addition to IP address.
-         *
-         * @param  descs         [in]  Descriptor list to include in the metadata
-         * @param  str           [out] The serialized metadata blob
-         * @param  extra_params  [in]  Optional extra parameters used in getting partial metadata
-         * @return nixl_status_t       Error code if call was not successful
-         */
-        nixl_status_t
-        sendLocalPartialMD(nixl_reg_dlist_t  &descs,
-                           const nixl_opt_args_t* extra_params = nullptr) const;
-
-        /**
          * @brief  Fetch other agent's metadata and unpack it internally.
          *
          * @param  remote_name   Name of remote agent to fetch from ETCD or socket.
