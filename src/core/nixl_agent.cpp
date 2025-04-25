@@ -1082,7 +1082,7 @@ nixlAgent::sendLocalMD (const nixl_opt_args_t* extra_params) const {
     nixl_status_t ret = getLocalMD(myMD);
     if(ret < 0) return ret;
 
-    if(remote_ip.size() == 0){
+    if(extra_params->ipAddr.size() == 0){
         //TODO: check if ETCD connection established
         //TODO: send a set request with my name and myMD
         return NIXL_SUCCESS;
@@ -1116,7 +1116,7 @@ nixl_status_t
 nixlAgent::fetchRemoteMD (const std::string remote_name,
                           const nixl_opt_args_t* extra_params) {
 
-    if(remote_ip.size() == 0){
+    if(extra_params->ipAddr.size() == 0){
         //TODO: check if ETCD connection established
         //TODO: check if get(remote_name) returns anything
         return NIXL_SUCCESS;
@@ -1130,7 +1130,7 @@ nixlAgent::fetchRemoteMD (const std::string remote_name,
 nixl_status_t
 nixlAgent::invalidateLocalMD (const nixl_opt_args_t* extra_params) const {
 
-    if(remote_ip.size() == 0){
+    if(extra_params->ipAddr.size() == 0){
         //TODO: check if ETCD connection established
         //TODO: remove my metadata from ETCD
         return NIXL_SUCCESS;
