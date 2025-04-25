@@ -63,7 +63,6 @@ if __name__ == "__main__":
 
     # Target code
     if args.mode == "target":
-
         target_descs = reg_descs.trim()
         target_desc_str = agent.get_serialized_descs(target_descs)
 
