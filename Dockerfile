@@ -58,7 +58,7 @@ RUN echo "/usr/local/nixl/lib/x86_64-linux-gnu" > /etc/ld.so.conf.d/nixl.conf &&
 
 # Create the wheel
 ARG WHL_PYTHON_VERSIONS="3.9,3.10,3.11,3.12"
-ARG WHL_PLATFORM="manylinux_2_27_x86_64"
+ARG WHL_PLATFORM="manylinux_2_28_x86_64"
 RUN IFS=',' read -ra PYTHON_VERSIONS <<< "$WHL_PYTHON_VERSIONS" && \
     for PYTHON_VERSION in "${PYTHON_VERSIONS[@]}"; do \
         uv build --wheel --out-dir /tmp/dist --python $PYTHON_VERSION; \
