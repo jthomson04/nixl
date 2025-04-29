@@ -16,7 +16,7 @@
  */
 #include <cassert>
 #include <iostream>
-#include "hf3fs_usrbio.h"
+//#include "hf3fs_usrbio.h"
 #include "hf3fs_backend.h"
 #include "common/str_tools.h"
 
@@ -30,11 +30,15 @@ nixlHf3fsEngine::nixlHf3fsEngine (const nixlBackendInitParams* init_params)
     if (hf3fs_utils->openHf3fsDriver() == NIXL_ERR_BACKEND)
         this->initErr = true;
 
-    auto ret = hf3fs_extract_mount_point(hf3fs_utils->mount_point, 256, init_params->mount_point);
+    // TODO handle mount point
+    std::string mount_point = init_params->customParams->at("mount_point");
+    char mount_point_cstr[256];
+    auto ret = hf3fs_extract_mount_point(mount_point_cstr, 256, mount_point.c_str());
     if (ret < 0) {
         std::cerr << "Error in extracting mount point\n";
         this->initErr = true;
     }
+    hf3fs_utils->mount_point = mount_point_cstr;
 
 }
 
@@ -53,7 +57,7 @@ nixl_status_t nixlHf3fsEngine::registerMem (const nixlBlobDesc &mem,
     auto it = hf3fs_file_map.find(fd);
     if (it != hf3fs_file_map.end()) {
     // should we update the size? and metadata
-        md->handle = it->second.handle;
+        md->handle = it->second;
         md->handle.size = mem.len;
         md->handle.metadata = mem.metaInfo;
         md->type = nixl_mem;
@@ -112,14 +116,14 @@ nixl_status_t nixlHf3fsEngine::postXfer (const nixl_xfer_op_t &operation,
 {
     // TODO: Determine the batches and prepare most of the handle
     void                *addr = NULL;
-    int                 fd = 0;
+    //int                 fd = 0;
     size_t              size = 0;
     size_t              offset = 0;
     size_t              total_size = 0;
-    int                 rc = 0;
-    size_t              buf_cnt  = local.descCount();
-    size_t              file_cnt = remote.descCount();
-    nixl_status_t       ret = NIXL_ERR_NOT_POSTED;
+    //int                 rc = 0;
+    int              buf_cnt  = local.descCount();
+    int              file_cnt = remote.descCount();
+    //nixl_status_t       ret = NIXL_ERR_NOT_POSTED;
     hf3fsFileHandle       fh;
     nixlHf3fsBackendReqH *hf3fs_handle = (nixlHf3fsBackendReqH *) handle;
 
@@ -136,7 +140,7 @@ nixl_status_t nixlHf3fsEngine::postXfer (const nixl_xfer_op_t &operation,
 
     bool is_read = operation == NIXL_READ;
 
-    auto status = hf3fs_utils->createIOR(hf3fs_handle->ior, file_cnt);
+    auto status = hf3fs_utils->createIOR(&hf3fs_handle->ior, file_cnt, is_read);
     for (int i = 0; i < file_cnt; i++) {
         addr = (void *) remote[i].addr;
         size = remote[i].len;
@@ -144,25 +148,26 @@ nixl_status_t nixlHf3fsEngine::postXfer (const nixl_xfer_op_t &operation,
 
         auto it = hf3fs_file_map.find(local[i].devId);
         if (it != hf3fs_file_map.end()) {
-            fh = it->second.handle;
+            fh = it->second;
         } else {
             return NIXL_ERR_NOT_FOUND;
         }
         // TODO: move IOV creation to prepXfer
-        auto status = hf3fs_utils->createIOV(&fh.iov, 1, size);
+        nixlHf3fsIO *io = new nixlHf3fsIO();
+        status = hf3fs_utils->createIOV(&io->iov, 1, size);
             if (status != NIXL_SUCCESS) {
                 return status;
+                // TODO: cleanup
             }
 
-        auto status = hf3fs_utils->prepIO(hf3fs_handle->ior, &fh.iov, addr, offset, size, fh.handle.fd, is_read);
+        status = hf3fs_utils->prepIO(&hf3fs_handle->ior, &io->iov, addr, offset, size, fh.fd, is_read);
         total_size += size;
-        nixlHf3fsIO *io = new nixlHf3fsIO();
-        io->iov = &fh.iov;
-        io->fd = fh.handle.fd;
+
+        io->fd = fh.fd;
         hf3fs_handle->io_list.push_back(io);
     }
 
-    auto status = hf3fs_utils->postIOR(hf3fs_handle->ior);
+    status = hf3fs_utils->postIOR(&hf3fs_handle->ior);
     if (status != NIXL_SUCCESS) {
         return status;
     }
@@ -182,11 +187,11 @@ nixl_status_t nixlHf3fsEngine::releaseReqH(nixlBackendReqH* handle)
     nixlHf3fsBackendReqH *hf3fs_handle = (nixlHf3fsBackendReqH *) handle;
     for (auto io : hf3fs_handle->io_list) {
         hf3fs_dereg_fd(io->fd);
-        hf3fs_utils->destroyIOV(io->iov);
+        hf3fs_utils->destroyIOV(&io->iov);
         delete io;
     }
 
-    hf3fs_utils->destroyIOR(hf3fs_handle->ior);
+    hf3fs_utils->destroyIOR(&hf3fs_handle->ior);
     delete hf3fs_handle;
     return NIXL_SUCCESS;
 }

@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 #include <iostream>
-#include "hf3fs_utils.h"
+#include "hf3fs_utills.h"
 
 
 nixl_status_t hf3fsUtil::registerFileHandle(int fd)
@@ -53,7 +53,7 @@ nixl_status_t hf3fsUtil::createIOV(struct hf3fs_iov *iov, int num_ios, size_t bl
                     size_t block_size,
                     int numa); */
     // TODO: numa?
-    auto ret = hf3fs_iovcreate(iov, this->mount_point, num_ios, block_size, 0);
+    auto ret = hf3fs_iovcreate(iov, this->mount_point.c_str(), num_ios, block_size, 0);
     if (ret < 0) {
         std::cerr << "hf3fs create iov error:"
                   << std::endl;
@@ -73,7 +73,7 @@ nixl_status_t hf3fsUtil::createIOR(struct hf3fs_ior *ior, int num_ios, bool is_r
                     int numa);*/
     // TODO: numa?, io_depth?
     // TODO: use iorcreate2/3/4?
-    auto ret = hf3fs_iorcreate(ior, this->mount_point, num_ios, is_read, num_ios, 0);
+    auto ret = hf3fs_iorcreate(ior, this->mount_point.c_str(), num_ios, is_read, num_ios, 0);
     if (ret < 0) {
         std::cerr << "hf3fs create ior error:"
                   << std::endl;
@@ -118,9 +118,11 @@ nixl_status_t hf3fsUtil::checkXfer(struct hf3fs_ior *ior)
 nixl_status_t hf3fsUtil::destroyIOR(struct hf3fs_ior *ior)
 {
     hf3fs_iordestroy(ior);
+    return NIXL_SUCCESS;
 }
 
 nixl_status_t hf3fsUtil::destroyIOV(struct hf3fs_iov *iov)
 {
     hf3fs_iovdestroy(iov);
+    return NIXL_SUCCESS;
 }

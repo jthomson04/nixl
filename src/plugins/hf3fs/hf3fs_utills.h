@@ -30,6 +30,7 @@ public:
     // -1 means inf size file?
     size_t         size;
     std::string    metadata;
+    std::string    mount_point;
 };
 
 class hf3fsUtil {
@@ -42,6 +43,8 @@ public:
     void closeHf3fsDriver();
     nixl_status_t createIOR(struct hf3fs_ior *ior, int num_ios, bool is_read);
     nixl_status_t createIOV(struct hf3fs_iov *iov, int num_ios, size_t block_size);
+    nixl_status_t destroyIOR(struct hf3fs_ior *ior);
+    nixl_status_t destroyIOV(struct hf3fs_iov *iov);
     nixl_status_t prepIO(struct hf3fs_ior *ior, struct hf3fs_iov *iov, void *addr, size_t fd_offset, size_t size, int fd, bool is_read);
     nixl_status_t postIOR(struct hf3fs_ior *ior);
     nixl_status_t checkXfer(struct hf3fs_ior *ior);

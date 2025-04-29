@@ -20,7 +20,7 @@ subdir('ucx_mo')
 subdir('hf3fs')
 
 disable_gds_backend = get_option('disable_gds_backend')
-if not disable_gds_backend and cuda_dep.found()
-    subdir('cuda_gds')
-endif
+#if not disable_gds_backend and cuda_dep.found()
+  #    subdir('cuda_gds')
+#endif
 

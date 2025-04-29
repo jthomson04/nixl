@@ -21,7 +21,6 @@
 #include <nixl_params.h>
 #include <nixl.h>
 #include <cassert>
-#include <cuda_runtime.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <ctime>

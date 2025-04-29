@@ -13,39 +13,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-gds_path = get_option('gds_path')
-if gds_path != ''
-  gds_lib_path = gds_path + '/lib'
-  gds_inc_path = gds_path + '/include'
-  cufile_dep = declare_dependency(
-    link_args : ['-L' + gds_lib_path, '-lcufile'],
-    include_directories : include_directories(gds_inc_path))
-endif
 
 # Update to use 3FS library paths
 threefs_lib_path = '/opt/3fs/lib'
-threefs_inc_path = '/opt/3fs/include'
+threefs_inc_path = '.'
 threefs_dep = declare_dependency(
   link_args : ['-L' + threefs_lib_path, '-l3fs'],
   include_directories : include_directories(threefs_inc_path))
 
 if 'HF3FS' in static_plugins
   hf3fs_backend_lib = static_library('HF3FS',
-                    'hf3fs_utils.cpp', 'hf3fs_utils.h',
+                    'hf3fs_utils.cpp', 'hf3fs_utills.h',
                     'hf3fs_backend.cpp', 'hf3fs_backend.h',
                     'hf3fs_plugin.cpp',
-                    dependencies: [nixl_infra, cuda_dep, cufile_dep, threefs_dep],
-                    include_directories: [nixl_inc_dirs, utils_inc_dirs, include_directories(threefs_inc_path)],
+                    dependencies: [nixl_infra],
+                    include_directories: [nixl_inc_dirs, utils_inc_dirs],
                     install: false,
                     cpp_args : compile_flags,
                     name_prefix: 'libplugin_')  # Custom prefix for plugin libraries
 else
   hf3fs_backend_lib = shared_library('HF3FS',
-                    'hf3fs_utils.cpp', 'hf3fs_utils.h',
+                    'hf3fs_utils.cpp', 'hf3fs_utills.h',
                     'hf3fs_backend.cpp', 'hf3fs_backend.h',
                     'hf3fs_plugin.cpp',
-                    dependencies: [nixl_infra, cuda_dep, cufile_dep, threefs_dep],
-                    include_directories: [nixl_inc_dirs, utils_inc_dirs, include_directories(threefs_inc_path)],
+                    dependencies: [nixl_infra],
+                    include_directories: [nixl_inc_dirs, utils_inc_dirs],
                     install: true,
                     cpp_args : ['-fPIC'],
                     name_prefix: 'libplugin_',  # Custom prefix for plugin libraries

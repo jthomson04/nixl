@@ -20,11 +20,10 @@
 
 #include <nixl.h>
 #include <nixl_types.h>
-#include <cuda_runtime.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <list>
-#include "hf3fs_utils.h"
+#include "hf3fs_utills.h"
 #include "backend/backend_engine.h"
 
 class nixlHf3fsMetadata : public nixlBackendMD {
@@ -45,13 +44,20 @@ class nixlHf3fsIO {
         ~nixlHf3fsIO() {}
 };
 
+enum nixlHf3fsStatus {
+    NIXL_HF3FS_STATUS_PENDING,
+    NIXL_HF3FS_STATUS_PREPARED,
+    NIXL_HF3FS_STATUS_POSTED
+};
+
 class nixlHf3fsBackendReqH : public nixlBackendReqH {
     public:
        std::list<nixlHf3fsIO *> io_list;
        hf3fs_ior ior;
+       nixlHf3fsStatus status;
 
        nixlHf3fsBackendReqH() {}
-       ~nixlHf3fsBackendReqH() {
+       ~nixlHf3fsBackendReqH() {}
 };
 
 
