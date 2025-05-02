@@ -68,7 +68,7 @@ uringQueue::uringQueue(int num_entries, io_uring_params params)
 
     int uring_init_status = io_uring_queue_init_params(num_entries, &uring, &params);
     if (uring_init_status != 0) {
-        perror("uring_queue_init_params");
+        NIXL_ERROR << "uring_queue_init_params " << uring_init_status << std::endl;
         throw UringError::INIT;
     }
 }

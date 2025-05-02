@@ -41,12 +41,15 @@ env
 nvidia-smi topo -m || true
 ibv_devinfo || true
 
+echo "==== Setup IO uring ===="
+mount -t tmpfs size=1G tmpfs /mnt/testfs
 apt-get -qq update
 apt-get -qq install liburing-dev
 
+
 echo "==== Running C++ tests ===="
 cd ${INSTALL_DIR}
-./bin/nixl_posix_test -n 512
+./bin/nixl_posix_test -n 512 -d /mnt/testfs
 ./bin/desc_example
 ./bin/agent_example
 ./bin/nixl_example
