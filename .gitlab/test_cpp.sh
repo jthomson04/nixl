@@ -42,7 +42,7 @@ nvidia-smi topo -m || true
 ibv_devinfo || true
 
 echo "==== Setup IO uring ===="
-mount -t tmpfs size=1G tmpfs /mnt/testfs
+#mount -t tmpfs size=1G tmpfs /mnt/testfs
 apt-get -qq update
 apt-get -qq install liburing-dev
 
