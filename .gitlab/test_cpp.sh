@@ -51,7 +51,7 @@ cd ${INSTALL_DIR}
 ./bin/nixl_example
 ./bin/ucx_backend_test
 ./bin/ucx_mo_backend_test
-./bin/nixl_posix_test
+./bin/nixl_posix_test -n 512
 ./bin/ucx_backend_multi
 ./bin/serdes_test
 ./bin/gtest
