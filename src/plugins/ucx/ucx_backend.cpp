@@ -348,7 +348,7 @@ nixlUcxEngine::nixlUcxEngine (const nixlBackendInitParams* init_params)
         }
         std::cout << "WARNING: CUDA address workaround was set to:" << cudaAddrWA << std::endl;
     }
-    
+
     if (!forcedWA) {
         /* Default WA selection policy */
         if (nixlUcxContext::multiGpuCtxSupported()) {
@@ -358,7 +358,7 @@ nixlUcxEngine::nixlUcxEngine (const nixlBackendInitParams* init_params)
             cudaAddrWA = true;
         }
     }
-    
+
     progressThreadStart();
 }
 

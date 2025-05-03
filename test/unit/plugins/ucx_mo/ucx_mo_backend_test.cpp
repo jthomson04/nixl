@@ -82,7 +82,7 @@ nixlBackendEngine *createEngine(std::string name, uint32_t ndev, bool p_thread)
     init.pthrDelay    = 100;
     init.localAgent   = name;
     init.customParams = &custom_params;
-    
+
 #if BUILD_UCX_MO_BACKEND
     custom_params["num_ucx_engines"] = std::to_string(ndev);
     init.type         = "UCX_MO";
