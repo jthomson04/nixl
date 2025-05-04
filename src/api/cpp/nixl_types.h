@@ -117,6 +117,18 @@ typedef std::unordered_map<std::string, std::string> nixl_b_params_t;
 typedef std::unordered_map<std::string, std::vector<nixl_blob_t>> nixl_notifs_t;
 
 /**
+ * @class nixlCostEstimate
+ * @brief Cost estimation for a transfer request.
+ */
+class nixlCostEstimate {
+    public:
+        /**
+         * @var duration Estimated transfer duration in seconds.
+         */
+        double duration;
+};
+
+/**
  * @brief A constant to define the default communication port.
  */
 constexpr int default_comm_port = 8888;
