@@ -15,10 +15,14 @@
 
 [package]
 name = "nixl-sys"
-version = "0.2.0"
-edition = "2021"
 links = "nixl"
 build = "build.rs"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 thiserror = { version = "*" }
