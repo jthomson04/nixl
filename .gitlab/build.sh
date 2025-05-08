@@ -89,9 +89,9 @@ curl -fSsL "https://github.com/openucx/ucx/tarball/v1.18.0" | tar xz
 )
 
 git clone https://github.com/kvcache-ai/Mooncake.git
-bash Mooncake/dependencies.sh
+cd Mooncake && bash dependencies.sh
 source ~/.bashrc
-cd Mooncake && mkdir build && cd build && cmake .. -DBUILD_SHARED_LIBS=ON && make -j && make install
+mkdir build && cd build && cmake .. -DBUILD_SHARED_LIBS=ON && make -j && make install
 
 export LIBRARY_PATH=$LIBRARY_PATH:/usr/local/cuda/lib64
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs:${INSTALL_DIR}/lib
