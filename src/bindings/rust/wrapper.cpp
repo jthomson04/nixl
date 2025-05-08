@@ -1241,7 +1241,7 @@ nixl_capi_notif_map_get_notif(
   }
 }
 
-nixl_capi_status_t 
+nixl_capi_status_t
 nixl_capi_notif_map_clear(nixl_capi_notif_map_t map)
 {
   if (!map) {
@@ -1254,7 +1254,7 @@ nixl_capi_notif_map_clear(nixl_capi_notif_map_t map)
   }
   catch (const std::exception& e) {
     return NIXL_CAPI_ERROR_BACKEND;
-  }  
+  }
 }
 
 }  // extern "C"
