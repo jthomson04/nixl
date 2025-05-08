@@ -90,7 +90,7 @@ curl -fSsL "https://github.com/openucx/ucx/tarball/v1.18.0" | tar xz
 
 git clone https://github.com/kvcache-ai/Mooncake.git
 cd Mooncake && bash dependencies.sh
-source ~/.bashrc
+export PATH=${PATH}:/usr/local/go/bin
 mkdir build && cd build && cmake .. -DBUILD_SHARED_LIBS=ON && make -j && make install
 
 export LIBRARY_PATH=$LIBRARY_PATH:/usr/local/cuda/lib64
@@ -103,6 +103,7 @@ export PKG_CONFIG_PATH=${INSTALL_DIR}/lib/pkgconfig:$PKG_CONFIG_PATH
 # UCX transfers and can cause contention with local collectives.
 export UCX_TLS=^cuda_ipc
 
+cd /workspace
 meson setup nixl_build --prefix=${INSTALL_DIR} -Ducx_path=${UCX_INSTALL_DIR} -Dbuild_docs=true
 cd nixl_build && ninja && ninja install
 
