@@ -91,6 +91,8 @@ curl -fSsL "https://github.com/openucx/ucx/tarball/v1.18.0" | tar xz
 git clone https://github.com/kvcache-ai/Mooncake.git
 cd Mooncake && bash dependencies.sh
 export PATH=${PATH}:/usr/local/go/bin
+apt-get -qq remove libibverbs-dev
+apt-get -qq install -y libibverbs-dev
 mkdir build && cd build && cmake .. -DBUILD_SHARED_LIBS=ON && make -j && make install
 
 export LIBRARY_PATH=$LIBRARY_PATH:/usr/local/cuda/lib64
