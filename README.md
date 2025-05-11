@@ -156,15 +156,19 @@ The preferred way is to build it through meson-python, which will just let it be
 ` $ pip install .`
 
 ### Rust Bindings
+#### Build
+Use `-Drust_bindings=true` meson option to build rust bindings, and `-Ddebug=false` for a release build.
+
 ```bash
-# Build with default NIXL installation (/opt/nvidia/nvda_nixl)
-$ cd src/bindings/rust
+# Or build manually:
 $ cargo build --release
+```
+#### Install
+The bindings will be installed under `nixl-sys` in the configured installation prefix
 
-# Or specify custom NIXL location
-$ NIXL_PREFIX=/path/to/nixl cargo build --release
-
-# Run tests
+#### Test
+```
+# Rust bindings tests
 $ cargo test
 ```
 
