@@ -23,10 +23,12 @@ authors.workspace = true
 homepage.workspace = true
 license.workspace = true
 repository.workspace = true
+readme.workspace = true
 
 [dependencies]
-thiserror = { version = "*" }
+thiserror = { version = "2" }
 tracing = { version = "0.1" }
+serde = { version = "1", features = ["derive"] }
 
 libc = "0.2"
 
