@@ -33,6 +33,9 @@ fn main() {
         .flag("-std=c++17")
         .flag("-fPIC")
         .include(&nixl_include_path)
+        .include("../../api/cpp")
+        .include("../../infra")
+        .include("../../core")
         // Change ABI flag if necessary to match your precompiled libraries:
             //    .flag("-D_GLIBCXX_USE_CXX11_ABI=0")
         .flag("-Wno-unused-parameter")

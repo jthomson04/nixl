@@ -175,28 +175,3 @@ if get_option('build_docs')
     build_by_default: true
   )
 endif
-
-rustc = find_program('rustc', required: false)
-cargo = find_program('cargo', required: false)
-
-rust_bindings_dir = join_paths(get_option('prefix'), 'nixl-sys')
-
-if rustc.found() and cargo.found()
-  rust_lib = custom_target(
-    'rust',
-    command: [
-      cargo, 'build', '--release',
-      '--target-dir', rust_bindings_dir
-    ],
-    input: [],
-    output: 'nixl-sys',
-    depends: [],
-    install: true,
-    install_dir: rust_bindings_dir,
-    env: [
-      'NIXL_PREFIX=' + get_option('prefix')
-    ]
-  )
-else
-  nixl_rust_bindings_lib = disabler()
-endif
