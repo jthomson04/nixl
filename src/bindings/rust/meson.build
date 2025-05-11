@@ -19,7 +19,7 @@ cargo = find_program('cargo', required: false)
 
 if cargo.found() and get_option('rust_bindings')
   RUST_BINDINGS_NAME = 'nixl-sys'
-  
+
   cargo_build_cmd = [
         cargo, 'build', '--target-dir', 'src' / 'bindings' / 'rust' / RUST_BINDINGS_NAME,
   ]
