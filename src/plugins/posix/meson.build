@@ -15,7 +15,7 @@
 
 # Check for libaio dependency (required)
 compiler = meson.get_compiler('cpp')
-libaio_dep = dependency('aio', required: false)
+libaio_dep = compiler.find_library('aio', required: false)
 
 # If libaio is not found, skip building the POSIX plugin entirely
 if not libaio_dep.found()
