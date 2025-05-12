@@ -20,7 +20,8 @@ fn main() {
     let nixl_root_path =
         env::var("NIXL_PREFIX").unwrap_or_else(|_| "/opt/nvidia/nvda_nixl".to_string());
     let nixl_include_path = format!("{}/include", nixl_root_path);
-    let nixl_lib_path = format!("{}/lib/x86_64-linux-gnu", nixl_root_path);
+    let nixl_lib_path = format!("{}/lib64", nixl_root_path);
+    let nixl_include_paths = [&nixl_include_path, "../../api/cpp", "../../infra", "../../core"];
 
     // Tell cargo to look for shared libraries in the specified directories
     println!("cargo:rustc-link-search={}", nixl_lib_path);
@@ -32,10 +33,7 @@ fn main() {
         .file("wrapper.cpp")
         .flag("-std=c++17")
         .flag("-fPIC")
-        .include(&nixl_include_path)
-        .include("../../api/cpp")
-        .include("../../infra")
-        .include("../../core")
+        .includes(nixl_include_paths)
         // Change ABI flag if necessary to match your precompiled libraries:
         //    .flag("-D_GLIBCXX_USE_CXX11_ABI=0")
         .flag("-Wno-unused-parameter")

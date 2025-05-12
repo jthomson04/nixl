@@ -159,14 +159,18 @@ The preferred way is to build it through meson-python, which will just let it be
 
 ### Rust Bindings
 #### Build
-Use `-Drust_bindings=true` meson option to build rust bindings, and `-Ddebug=false` for a release build.
-
-```bash
-# Or build manually:
-$ cargo build --release
-```
+- Use `-Denable_rust_bindings=true` meson option to build rust bindings.
+- Use `-Ddebug=false` for a release build.
+- Or build manually:
+    ```bash
+    $ cargo build --release
+    ```
 #### Install
-The bindings will be installed under `nixl-sys` in the configured installation prefix
+The bindings will be installed under `nixl-sys` in the configured installation prefix.
+Can be done using ninja, from project build directory:
+```bash
+$ ninja install
+```
 
 #### Test
 ```

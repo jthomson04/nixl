@@ -29,7 +29,6 @@ if cargo.found() and get_option('enable_rust_bindings')
   endif
 
   nixl_include_dir = include_directories('../../api/cpp', '../../infra', '../../core')
-
   nixl_dep = declare_dependency(link_with: nixl_lib, include_directories: nixl_include_dir)
 
   wrapper_sources = ['wrapper.cpp']
