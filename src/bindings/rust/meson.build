@@ -14,7 +14,6 @@
 # limitations under the License.
 
 
-
 cargo = find_program('cargo', required: false)
 
 if cargo.found() and get_option('enable_rust_bindings')
