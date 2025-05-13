@@ -25,8 +25,14 @@ fn main() {
     let nixl_include_paths = [&nixl_include_path, "../../api/cpp", "../../infra", "../../core"];
 
     // Tell cargo to look for shared libraries in the specified directories
-    println!("cargo:rustc-link-search={}", nixl_lib_path_ubuntu);
-    println!("cargo:rustc-link-search={}", nixl_lib_path_redhat);
+    let os_info = os_info::get();
+    if os_info.os_type() == os_info::Type::Linux {
+        if os_info.distribution_id() == Some("ubuntu") {
+            println!("cargo:rustc-link-search={}", nixl_lib_path_ubuntu);
+        } else if os_info.distribution_id() == Some("redhat") || os_info.distribution_id() == Some("centos") {
+            println!("cargo:rustc-link-search={}", nixl_lib_path_redhat);
+        }
+    }
 
     // Build the C++ wrapper
     cc::Build::new()

@@ -29,7 +29,7 @@ readme.workspace = true
 thiserror = { version = "2" }
 tracing = { version = "0.1" }
 serde = { version = "1", features = ["derive"] }
-
+os_info = "3.7"
 libc = "0.2"
 
 [build-dependencies]
