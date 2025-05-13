@@ -168,9 +168,9 @@ PYBIND11_MODULE(_bindings, m) {
 
     py::class_<nixlCostEstimate>(m, "CostEstimate")
         .def(py::init<>())
-        .def_readwrite("duration", &nixlCostEstimate::duration)
+        .def("getDuration", &nixlCostEstimate::getDuration)
         .def("__repr__", [](const nixlCostEstimate &est) {
-            return "<CostEstimate(duration=" + std::to_string(est.duration) + ")>";
+            return "<CostEstimate(duration=" + std::to_string(est.getDuration()) + ")>";
         });
 
     py::class_<nixl_xfer_dlist_t>(m, "nixlXferDList")

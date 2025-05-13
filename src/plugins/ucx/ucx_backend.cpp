@@ -843,7 +843,7 @@ nixl_status_t nixlUcxEngine::estimateXferCost (const nixl_xfer_op_t &operation,
 
     if (local.descCount() == 0) {
         // Nothing to do
-        estimate.duration = 0.0;
+        estimate.setDuration(0);
         return NIXL_SUCCESS;
     }
 
@@ -881,7 +881,7 @@ nixl_status_t nixlUcxEngine::estimateXferCost (const nixl_xfer_op_t &operation,
         total_duration_sec += duration_sec;
     }
 
-    estimate.duration = total_duration_sec;
+    estimate.setDuration(total_duration_sec);
     return NIXL_SUCCESS;
 }
 
