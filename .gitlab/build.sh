@@ -66,7 +66,9 @@ apt-get -qq install -y curl \
                              uuid-dev \
                              ibverbs-utils \
                              libibmad-dev \
-                             doxygen
+                             doxygen \
+                             rustc \
+                             cargo
 
 curl -fSsL "https://github.com/openucx/ucx/tarball/v1.18.0" | tar xz
 ( \
