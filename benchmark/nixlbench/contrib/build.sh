@@ -18,9 +18,9 @@
 SOURCE_DIR=$(dirname "$(readlink -f "$0")")
 BUILD_CONTEXT=$(dirname "$(readlink -f "$SOURCE_DIR")")
 BUILD_CONTEXT_ARGS=""
-NIXL_BUILD_CONTEXT_ARGS=""
+NIXL_SRC=$(readlink -f "${SOURCE_DIR}/../../..")
+NIXL_BUILD_CONTEXT_ARGS="--build-context nixl=$NIXL_SRC"
 NIXL_BENCH_BUILD_CONTEXT_ARGS="--build-context nixlbench=$BUILD_CONTEXT/"
-NIXL_SRC=""
 DOCKER_FILE="${SOURCE_DIR}/Dockerfile"
 UCX_SRC=""
 UCX_BUILD_CONTEXT_ARGS=""
@@ -65,7 +65,7 @@ get_options() {
         --nixl)
             if [ "$2" ]; then
                 NIXL_BUILD_CONTEXT_ARGS="--build-context nixl=$2"
-		NIXL_SRC=$2
+		        NIXL_SRC=$2
                 shift
             else
                 missing_requirement $1
