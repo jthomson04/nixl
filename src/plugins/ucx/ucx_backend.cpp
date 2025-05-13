@@ -857,8 +857,6 @@ nixl_status_t nixlUcxEngine::estimateXferCost (const nixl_xfer_op_t &operation,
 
     // Iterate through descriptors to estimate cost for each pair.
     for (i = 0; i < lcnt; i++) {
-        // Use addr/len from nixlMetaDesc - assumes these are correct for the segment
-        void *laddr = (void*) local[i].addr;
         size_t lsize = local[i].len;
         // void *raddr = (void*) remote[i].addr; // Not needed for cost params
         size_t rsize = remote[i].len;
@@ -879,7 +877,8 @@ nixl_status_t nixlUcxEngine::estimateXferCost (const nixl_xfer_op_t &operation,
 
         double duration_sec = 0.0;
         ret = uw->estimateCost(rmd->conn.ep,    // Remote Endpoint
-                               laddr,           // Local buffer address
+                               lmd->mem,        // Local buffer address
+                               rmd->rkey,       // Remote buffer address
                                lsize,           // Message size
                                operation,       // NIXL operation type
                                duration_sec);   // Output duration

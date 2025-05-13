@@ -128,17 +128,18 @@ public:
      * @brief Estimate the cost (duration) of a single transfer operation.
      *
      * @param ep             Remote endpoint handle.
-     * @param local_addr     Pointer to the local buffer (used for memory type detection).
-     * @param length         Size of the message to estimate cost for.
-     * @param nixl_op        NIXL operation type (NIXL_READ or NIXL_WRITE).
+     * @param mem            Local memory handle.
+     * @param rk             Remote memory Rkey handle.
+     * @param size           Size of the transfer.
+     * @param nixl_op        NIXL operation type.
      * @param duration_sec   [out] Estimated duration in seconds.
      * @return nixl_status_t NIXL_SUCCESS on success,
-     *                       NIXL_ERR_NOT_SUPPORTED if estimation is unavailable,
-     *                       NIXL_ERR_BACKEND on other UCX errors.
+     *                       error code otherwise.
      */
     nixl_status_t estimateCost(nixlUcxEp ep,
-                               void* local_addr,
-                               size_t length,
+                               nixlUcxMem &mem,
+                               nixlUcxRkey &rk,
+                               size_t size,
                                nixl_xfer_op_t nixl_op,
                                double& duration_sec);
 
