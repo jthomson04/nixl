@@ -765,15 +765,15 @@ nixlAgent::estimateXferCost(const nixlXferReqH &req_hndl,
     // (assuming cost estimation requires connection info like transfers)
     if (!req_hndl.remoteAgent.empty() &&
         (data->remoteSections.count(req_hndl.remoteAgent) == 0)) {
+        NIXL_ERROR << "Invalid request handle: remote agent not found";
         return NIXL_ERR_NOT_FOUND;
     }
 
     if (!req_hndl.engine) {
-        // Should not happen if req_hndl is valid
+        NIXL_ERROR << "Invalid request handle: engine is null";
         return NIXL_ERR_UNKNOWN;
     }
 
-    // Call the backend engine's implementation
     return req_hndl.engine->estimateXferCost(req_hndl.backendOp,
                                              *req_hndl.initiatorDescs,
                                              *req_hndl.targetDescs,
