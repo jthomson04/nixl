@@ -129,7 +129,7 @@ class nixlBackendEngine {
                                                const nixl_meta_dlist_t &local,
                                                const nixl_meta_dlist_t &remote,
                                                const std::string &remote_agent,
-                                               nixlCostEstimate* estimate)
+                                               nixlCostEstimate &estimate)
         {
             return NIXL_ERR_NOT_SUPPORTED;
         }

@@ -833,36 +833,27 @@ nixl_status_t nixlUcxEngine::estimateXferCost (const nixl_xfer_op_t &operation,
                                                const nixl_meta_dlist_t &local,
                                                const nixl_meta_dlist_t &remote,
                                                const std::string &agent_name,
-                                               nixlCostEstimate* estimate)
+                                               nixlCostEstimate &estimate)
 {
-    size_t lcnt = local.descCount();
-    size_t rcnt = remote.descCount();
-    size_t i;
-    nixl_status_t ret;
-    nixlUcxPrivateMetadata *lmd;
-    nixlUcxPublicMetadata *rmd;
-    double total_duration_sec = 0.0;
-
-    if (lcnt != rcnt) {
-        NIXL_ERROR << "Local (" << lcnt << ") and remote (" << rcnt
+    if (local.descCount() != remote.descCount()) {
+        NIXL_ERROR << "Local (" << local.descCount() << ") and remote (" << remote.descCount()
                    << ") descriptor lists differ in size for cost estimation";
         return NIXL_ERR_MISMATCH;
     }
 
-    if (lcnt == 0) {
-        // Nothing to estimate
-        estimate->duration = 0.0;
+    if (local.descCount() == 0) {
+        // Nothing to do
+        estimate.duration = 0.0;
         return NIXL_SUCCESS;
     }
 
-    // Iterate through descriptors to estimate cost for each pair.
-    for (i = 0; i < lcnt; i++) {
+    double total_duration_sec = 0.0;
+    for (int i = 0; i < local.descCount(); i++) {
         size_t lsize = local[i].len;
-        // void *raddr = (void*) remote[i].addr; // Not needed for cost params
         size_t rsize = remote[i].len;
 
-        lmd = (nixlUcxPrivateMetadata*) local[i].metadataP;
-        rmd = (nixlUcxPublicMetadata*) remote[i].metadataP;
+        nixlUcxPrivateMetadata *lmd = static_cast<nixlUcxPrivateMetadata*>(local[i].metadataP);
+        nixlUcxPublicMetadata *rmd = static_cast<nixlUcxPublicMetadata*>(remote[i].metadataP);
 
         if (!lmd || !rmd) {
             NIXL_ERROR << "Null metadata found in descriptor lists at index " << i << " during cost estimation";
@@ -870,29 +861,27 @@ nixl_status_t nixlUcxEngine::estimateXferCost (const nixl_xfer_op_t &operation,
         }
 
         if (lsize != rsize) {
-             NIXL_ERROR << "Local size (" << lsize << ") != Remote size (" << rsize
-                        << ") at index " << i << " during cost estimation";
-            return NIXL_ERR_INVALID_PARAM; // Should have been caught by agent layer, but check anyway
+            NIXL_ERROR << "Local size (" << lsize << ") != Remote size (" << rsize
+                       << ") at index " << i << " during cost estimation";
+            return NIXL_ERR_INVALID_PARAM;
         }
 
         double duration_sec = 0.0;
-        ret = uw->estimateCost(rmd->conn.ep,    // Remote Endpoint
-                               lmd->mem,        // Local buffer address
-                               rmd->rkey,       // Remote buffer address
-                               lsize,           // Message size
-                               operation,       // NIXL operation type
-                               duration_sec);   // Output duration
-
+        nixl_status_t ret = uw->estimateCost(rmd->conn.ep,    // Remote Endpoint
+                                             lmd->mem,        // Local buffer address
+                                             rmd->rkey,       // Remote buffer address
+                                             lsize,           // Message size
+                                             operation,       // NIXL operation type
+                                             duration_sec);   // Output duration
         if (ret != NIXL_SUCCESS) {
             NIXL_ERROR << "Worker failed to estimate cost for segment " << i << " status: " << ret;
-            // If one segment fails, the whole estimate fails
             return ret;
         }
 
         total_duration_sec += duration_sec;
     }
 
-    estimate->duration = total_duration_sec;
+    estimate.duration = total_duration_sec;
     return NIXL_SUCCESS;
 }
 

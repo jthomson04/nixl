@@ -234,8 +234,8 @@ class nixlAgent {
          * @return nixl_status_t Error code if call was not successful
          */
         nixl_status_t
-        estimateXferCost(nixlXferReqH* req_hndl,
-                         nixlCostEstimate* estimate) const;
+        estimateXferCost(const nixlXferReqH &req_hndl,
+                         nixlCostEstimate &estimate) const;
 
         /**
          * @brief  Submit a transfer request `req_hndl` which initiates a transfer.

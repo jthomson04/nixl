@@ -479,12 +479,7 @@ nixl_status_t nixlUcxWorker::estimateCost(nixlUcxEp ep,
                                           nixl_xfer_op_t nixl_op,
                                           double& duration_sec)
 {
-    ucp_ep_evaluate_perf_param_t params;
-    ucp_ep_evaluate_perf_attr_t cost_result;
-    ucs_status_t status;
     ucp_ep_cost_op_type_t ucx_op_type;
-
-    // Map NIXL operation to UCX operation type
     switch (nixl_op) {
         case NIXL_WRITE:
             ucx_op_type = UCP_OP_PUT;
@@ -496,39 +491,31 @@ nixl_status_t nixlUcxWorker::estimateCost(nixlUcxEp ep,
             NIXL_ERROR << "Unsupported NIXL operation type: " << nixl_op;
             return NIXL_ERR_INVALID_PARAM;
     }
+    ucp_ep_evaluate_perf_param_t params = {
+        .field_mask = UCP_EP_PERF_PARAM_FIELD_MESSAGE_SIZE |
+                      UCP_EP_PERF_PARAM_FIELD_RKEY         |
+                      UCP_EP_PERF_PARAM_FIELD_MEM_H        |
+                      UCP_EP_PERF_PARAM_FIELD_OP_TYPE,
+        .message_size = size,
+        .rkey         = rk.rkeyh,
+        .mem_h        = mem.memh,
+        .op_type      = ucx_op_type,
+    };
 
-    // Populate parameters for ucp_ep_query_cost
-    params.field_mask = UCP_EP_PERF_PARAM_FIELD_MESSAGE_SIZE |
-                        UCP_EP_PERF_PARAM_FIELD_RKEY         |
-                        UCP_EP_PERF_PARAM_FIELD_MEM_H        |
-                        UCP_EP_PERF_PARAM_FIELD_OP_TYPE;
+    ucp_ep_evaluate_perf_attr_t cost_result = {
+        .field_mask = UCP_EP_PERF_ATTR_FIELD_ESTIMATED_TIME,
+    };
 
-    params.message_size = size;
-    params.rkey         = rk.rkeyh;
-    params.mem_h        = mem.memh;
-    params.op_type      = ucx_op_type;
-
-    // Specify desired output field
-    cost_result.field_mask = UCP_EP_PERF_ATTR_FIELD_ESTIMATED_TIME;
-
-    // Call the UCX cost estimation function
-    status = ucp_ep_evaluate_perf(ep.eph, &params, &cost_result);
-
-    // Handle status
+    ucs_status_t status = ucp_ep_evaluate_perf(ep.eph, &params, &cost_result);
     if (status != UCS_OK) {
-        // Some other UCX error occurred
         NIXL_ERROR << "ucp_ep_evaluate_perf failed: " << ucs_status_string(status);
         return NIXL_ERR_BACKEND;
     }
-
-    // Check if the duration field was actually returned
     if (!(cost_result.field_mask & UCP_EP_PERF_ATTR_FIELD_ESTIMATED_TIME)) {
-        // UCX succeeded but didn't provide the requested duration
         NIXL_ERROR << "ucp_ep_evaluate_perf failed: no duration returned";
         return NIXL_ERR_BACKEND;
     }
 
-    // Success, set the output duration
     duration_sec = cost_result.estimated_time;
     return NIXL_SUCCESS;
 }

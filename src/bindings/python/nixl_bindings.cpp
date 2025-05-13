@@ -435,7 +435,7 @@ PYBIND11_MODULE(_bindings, m) {
                    py::arg("backend") = std::vector<uintptr_t>({}))
         .def("estimateXferCost", [](nixlAgent &agent, uintptr_t reqh) -> nixlCostEstimate {
                 nixlCostEstimate estimate;
-                nixl_status_t status = agent.estimateXferCost(reinterpret_cast<nixlXferReqH*>(reqh), &estimate);
+                nixl_status_t status = agent.estimateXferCost(reinterpret_cast<nixlXferReqH&>(reqh), estimate);
                 throw_nixl_exception(status);
                 return estimate;
             }, py::arg("req_handle"))

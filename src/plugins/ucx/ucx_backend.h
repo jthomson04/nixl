@@ -221,7 +221,7 @@ class nixlUcxEngine : public nixlBackendEngine {
                                        const nixl_meta_dlist_t &local,
                                        const nixl_meta_dlist_t &remote,
                                        const std::string &remote_agent,
-                                       nixlCostEstimate* estimate) override;
+                                       nixlCostEstimate &estimate) override;
 
         nixl_status_t postXfer (const nixl_xfer_op_t &operation,
                                 const nixl_meta_dlist_t &local,
