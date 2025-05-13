@@ -15,6 +15,7 @@
 
 use std::env;
 use std::path::PathBuf;
+use os_info;
 
 fn main() {
     let nixl_root_path =
