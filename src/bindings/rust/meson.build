@@ -20,7 +20,8 @@ if cargo.found() and get_option('enable_rust_bindings')
   RUST_BINDINGS_NAME = 'nixl-sys'
 
   cargo_build_cmd = [
-        cargo, 'build', '--target-dir', 'src' / 'bindings' / 'rust' / RUST_BINDINGS_NAME,
+        cargo, 'build', '--target-dir',
+        'src' / 'bindings' / 'rust' / RUST_BINDINGS_NAME,
   ]
 
   if get_option('buildtype') == 'release'

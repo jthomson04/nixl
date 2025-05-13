@@ -20,11 +20,13 @@ fn main() {
     let nixl_root_path =
         env::var("NIXL_PREFIX").unwrap_or_else(|_| "/opt/nvidia/nvda_nixl".to_string());
     let nixl_include_path = format!("{}/include", nixl_root_path);
-    let nixl_lib_path = format!("{}/lib/x86_64-linux-gnu", nixl_root_path);
+    let nixl_lib_path_ubuntu = format!("{}/lib/x86_64-linux-gnu", nixl_root_path);
+    let nixl_lib_path_redhat = format!("{}/lib64", nixl_root_path);
     let nixl_include_paths = [&nixl_include_path, "../../api/cpp", "../../infra", "../../core"];
 
     // Tell cargo to look for shared libraries in the specified directories
-    println!("cargo:rustc-link-search={}", nixl_lib_path);
+    println!("cargo:rustc-link-search={}", nixl_lib_path_ubuntu);
+    println!("cargo:rustc-link-search={}", nixl_lib_path_redhat);
 
     // Build the C++ wrapper
     cc::Build::new()
