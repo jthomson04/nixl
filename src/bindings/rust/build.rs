@@ -22,7 +22,7 @@ fn main() {
     let nixl_include_path = format!("{}/include", nixl_root_path);
     let nixl_lib_path_ubuntu = format!("{}/lib/x86_64-linux-gnu", nixl_root_path);
     let nixl_lib_path_redhat = format!("{}/lib64", nixl_root_path);
-    let nixl_include_paths = [&nixl_include_path, "../../api/cpp", "../../infra", "../../core"];
+    let nixl_include_paths = [&nixl_include_path, "../../api/cpp", "../../infra", "../../core", "/usr/include"];
 
     // Tell cargo to look for shared libraries in the specified directories
     let os_info = os_info::get();
