@@ -45,8 +45,8 @@ RUN echo "INFO: Using UCX from base image (UCX=${UCX})."
 
 # --- Stage 2b: Represents building UCX from source ---
 FROM os_setup_stage AS ucx_custom_image
-RUN mkdir -p /tmp/ucx_build
-COPY --from=ucx . /tmp/ucx_build
+RUN mkdir -p /workspace/ucx
+COPY --from=ucx . /workspace/ucx
 
 RUN echo "INFO: Starting custom UCX build..." && \
     apt-get update -y && \
@@ -55,21 +55,16 @@ RUN echo "INFO: Starting custom UCX build..." && \
         libnuma-dev librdmacm-dev ibverbs-providers && \
     echo "INFO: Removing pre-existing UCX installations..." && \
     rm -rf /usr/local/ucx /opt/hpcx/ucx && \
-    cd /tmp/ucx_build && \
+    cd /workspace/ucx && \
     ./autogen.sh && \
     echo "INFO: Building UCX..." && \
-    ./configure --prefix=/usr/local/ucx \
-                --with-cuda=/usr/local/cuda \
-                --enable-mt \
-                --without-go \
-                --disable-logging \
-                --disable-debug \
-                --disable-assertions \
-                --disable-params-check && \
+    ./contrib/configure-release --prefix=/usr/local/ucx \
+                                --with-cuda=/usr/local/cuda \
+                                --enable-mt \
+                                --without-go && \
     make -j$(nproc) && \
     make install && \
     cd / && \
-    rm -rf /tmp/ucx_build && \
     echo "INFO: Finished building and installing UCX to /usr/local/ucx."
 
 # --- Stage 3: UCX Image Selection ---
