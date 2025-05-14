@@ -21,11 +21,19 @@ fn main() {
     let nixl_root_path =
         env::var("NIXL_PREFIX").unwrap_or_else(|_| "/opt/nvidia/nvda_nixl".to_string());
     let nixl_include_path = format!("{}/include", nixl_root_path);
-    let nixl_lib_path_ubuntu = format!("{}/lib/x86_64-linux-gnu", nixl_root_path);
-    let nixl_lib_path_redhat = format!("{}/lib64", nixl_root_path);
     let nixl_include_paths = [&nixl_include_path, "../../api/cpp", "../../infra", "../../core", "/usr/include"];
 
-    // Tell cargo to look for shared libraries in the specified directories
+    // Determine architecture based on target
+    let arch = match env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_else(|_| "x86_64".to_string()).as_str() {
+        "x86_64" => "x86_64",
+        "aarch64" => "aarch64",
+        other => panic!("Unsupported architecture: {}", other),
+    };
+
+    let nixl_lib_path_ubuntu = format!("{}/lib/{}-linux-gnu", nixl_root_path, arch);
+    let nixl_lib_path_redhat = format!("{}/lib64", nixl_root_path);
+
+    // Tell cargo to look for shared libraries in the specified directories depending on the OS
     let os_info = os_info::get();
     if os_info.os_type() == os_info::Type::Ubuntu {
         println!("cargo:rustc-link-search={}", nixl_lib_path_ubuntu);
