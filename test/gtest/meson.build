@@ -48,8 +48,16 @@ endif
 # for loading plugins from build directory
 cpp_flags += '-DBUILD_DIR="' + meson.project_build_root() + '"'
 
+gtest_sources = [
+    'main.cpp',
+    'mocks/gmock_engine.cpp',
+    'plugin_manager.cpp',
+    'ucx_tests.cpp',
+    'test_transfer.cpp',
+    'agent.cpp'
+    ]
 test_exe = executable('gtest',
-    sources : ['main.cpp', 'plugin_manager.cpp', 'ucx_tests.cpp', 'test_transfer.cpp'],
+    sources : gtest_sources,
     include_directories: [nixl_inc_dirs, utils_inc_dirs],
     cpp_args : cpp_flags,
     dependencies : [nixl_dep, cuda_dep, gtest_dep, gmock_dep, absl_strings_dep, absl_time_dep],
