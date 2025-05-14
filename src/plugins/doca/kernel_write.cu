@@ -78,40 +78,40 @@ __global__ void kernel_write(struct doca_gpu_dev_rdma *rdma_gpu, struct docaXfer
 	struct doca_gpu_buf *rbuf;
     const int connection_index = 0;
     uint32_t num_ops=0;
+	uint32_t curr_position;
+	uint32_t mask_max_position;
 
     //Warmup
     if (xferReqRing == nullptr)
         return;
 
-    if (threadIdx.x >= xferReqRing[pos].num)
-        return;
+    if (threadIdx.x < xferReqRing[pos].num) {
+        doca_gpu_dev_rdma_get_info(rdma_gpu, 0, &curr_position, &mask_max_position);
+        doca_gpu_dev_buf_get_buf((struct doca_gpu_buf_arr *)xferReqRing[pos].larr[threadIdx.x], 0, &lbuf);
+        doca_gpu_dev_buf_get_buf((struct doca_gpu_buf_arr *)xferReqRing[pos].rarr[threadIdx.x], 0, &rbuf);
 
-    doca_gpu_dev_buf_get_buf((struct doca_gpu_buf_arr *)xferReqRing[pos].larr[threadIdx.x], 0, &lbuf);
-	doca_gpu_dev_buf_get_buf((struct doca_gpu_buf_arr *)xferReqRing[pos].rarr[threadIdx.x], 0, &rbuf);
+        // printf(">>>>>>> CUDA rdma write kernel thread %d pos %d wqe %d size %d\n",
+        //         threadIdx.x, pos, (curr_position + threadIdx.x) & mask_max_position, (int)xferReqRing[pos].size[threadIdx.x]);
 
-    // printf(">>>>>>> CUDA rdma write kernel thread %d pos %d size %d\n", threadIdx.x, pos, (int)xferReqRing[pos].size[threadIdx.x]);
+        result = doca_gpu_dev_rdma_write_weak(rdma_gpu, connection_index, rbuf, 0, lbuf, 0, xferReqRing[pos].size[threadIdx.x], 0, DOCA_GPU_RDMA_WRITE_FLAG_NONE, (curr_position + threadIdx.x) & mask_max_position);
+        if (result != DOCA_SUCCESS)
+            printf("Error %d doca_gpu_dev_rdma_write_strong\n", result);
 
-    //Each thread should send a different buffer
-    result = doca_gpu_dev_rdma_write_strong(rdma_gpu, connection_index, rbuf, 0, lbuf, 0, xferReqRing[pos].size[threadIdx.x], 0, DOCA_GPU_RDMA_WRITE_FLAG_NONE);
-    if (result != DOCA_SUCCESS)
-        printf("Error %d doca_gpu_dev_rdma_write_strong\n", result);
-
+    }
     __syncthreads();
 
     if (threadIdx.x == 0) {
-        result = doca_gpu_dev_rdma_commit_strong(rdma_gpu, connection_index);
-        if (result != DOCA_SUCCESS)
-            printf("Error %d doca_gpu_dev_rdma_push\n", result);
+        doca_gpu_dev_rdma_commit_weak(rdma_gpu, 0, xferReqRing[pos].num);
 
         result = doca_gpu_dev_rdma_wait_all(rdma_gpu, &num_ops);
         if (result != DOCA_SUCCESS)
             printf("Error %d doca_gpu_dev_rdma_wait_all\n", result);
 
-        // printf(">>>>>>> CUDA rdma write kernel pos %d num %d completed %d ops\n", pos, xferReqRing[pos].num, num_ops);
+        // printf(">>>>>>> CUDA rdma write kernel pos %d num %d completed %d ops\n",
+        //     pos, xferReqRing[pos].num, num_ops);
 
         xferReqRing[pos].num = 0;
     }
-
 }
 
 extern "C" {
