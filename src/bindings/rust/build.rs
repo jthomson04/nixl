@@ -27,12 +27,10 @@ fn main() {
 
     // Tell cargo to look for shared libraries in the specified directories
     let os_info = os_info::get();
-    if os_info.os_type() == os_info::Type::Linux {
-        if os_info.distribution_id() == Some("ubuntu") {
-            println!("cargo:rustc-link-search={}", nixl_lib_path_ubuntu);
-        } else if os_info.distribution_id() == Some("redhat") || os_info.distribution_id() == Some("centos") {
-            println!("cargo:rustc-link-search={}", nixl_lib_path_redhat);
-        }
+    if os_info.os_type() == os_info::Type::Ubuntu {
+        println!("cargo:rustc-link-search={}", nixl_lib_path_ubuntu);
+    } else {
+        println!("cargo:rustc-link-search={}", nixl_lib_path_redhat);
     }
 
     // Build the C++ wrapper
