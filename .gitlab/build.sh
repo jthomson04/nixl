@@ -33,7 +33,9 @@ fi
 
 apt-get -qq update
 
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.86.0
+source $HOME/.cargo/env
+export PATH=$HOME/.cargo/bin:$PATH
 
 apt-get -qq install -y curl \
                              libnuma-dev \
@@ -69,9 +71,7 @@ apt-get -qq install -y curl \
                              uuid-dev \
                              ibverbs-utils \
                              libibmad-dev \
-                             doxygen \
-                             rustc=1.86.0 \
-                             cargo=1.86.0
+                             doxygen
 
 curl -fSsL "https://github.com/openucx/ucx/tarball/v1.18.0" | tar xz
 ( \

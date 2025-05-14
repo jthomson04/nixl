@@ -15,7 +15,7 @@
 
 use std::env;
 use std::path::PathBuf;
-use os_info;
+// use os_info;
 
 fn main() {
     let nixl_root_path =
@@ -34,12 +34,12 @@ fn main() {
     let nixl_lib_path_redhat = format!("{}/lib64", nixl_root_path);
 
     // Tell cargo to look for shared libraries in the specified directories depending on the OS
-    let os_info = os_info::get();
-    if os_info.os_type() == os_info::Type::Ubuntu {
-        println!("cargo:rustc-link-search={}", nixl_lib_path_ubuntu);
-    } else {
+    // let os_info = os_info::get();
+    // if (os_info.os_type() == os_info::Type::Redhat) || (os_info.os_type() == os_info::Type::CentOS) {
         println!("cargo:rustc-link-search={}", nixl_lib_path_redhat);
-    }
+    // } else {
+        println!("cargo:rustc-link-search={}", nixl_lib_path_ubuntu);
+    // }
 
     // Build the C++ wrapper
     cc::Build::new()
@@ -62,6 +62,9 @@ fn main() {
 
     // Link against C++ standard library
     println!("cargo:rustc-link-lib=dylib=stdc++");
+
+    // Link against C standard library
+    println!("cargo:rustc-link-lib=dylib=c");
 
     // Tell cargo to invalidate the built crate whenever the wrapper changes
     println!("cargo:rerun-if-changed=wrapper.h");
