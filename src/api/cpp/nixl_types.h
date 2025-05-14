@@ -192,6 +192,8 @@ class nixlAgentOptionalArgs {
          *                    Note that invalidateLocalMD invalidates all labels and ignores this parameter.
          */
         std::string metadataLabel;
+        
+        /**
          * @var Backend custom parameter
          */
         nixl_blob_t customParam;
