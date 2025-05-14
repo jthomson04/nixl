@@ -32,6 +32,9 @@ if [ -z "$UCX_INSTALL_DIR" ]; then
 fi
 
 apt-get -qq update
+
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
 apt-get -qq install -y curl \
                              libnuma-dev \
                              numactl \
