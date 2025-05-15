@@ -22,7 +22,6 @@
 
 __global__ void kernel_read(struct doca_gpu_dev_rdma *rdma_gpu, struct docaXferReqGpu *xferReqRing, uint32_t pos)
 {
-    //struct doca_gpu_buf_arr *lbarr, struct doca_gpu_buf_arr *rbarr, size_t size
     doca_error_t result;
 	struct doca_gpu_buf *lbuf;
 	struct doca_gpu_buf *rbuf;
