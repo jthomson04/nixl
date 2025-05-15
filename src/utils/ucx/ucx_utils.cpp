@@ -285,6 +285,7 @@ nixl_status_t nixlUcxEp::estimateCost(nixlUcxMem &mem,
                                       nixl_xfer_op_t nixl_op,
                                       std::chrono::duration<double> &duration)
 {
+#if UCP_API_VERSION >= UCP_VERSION(1, 20)
     ucp_ep_cost_op_type_t ucx_op_type;
     switch (nixl_op) {
         case NIXL_WRITE:
@@ -297,6 +298,7 @@ nixl_status_t nixlUcxEp::estimateCost(nixlUcxMem &mem,
             NIXL_ERROR << "Unsupported NIXL operation type: " << nixl_op;
             return NIXL_ERR_INVALID_PARAM;
     }
+
     ucp_ep_evaluate_perf_param_t params = {
         .field_mask   = UCP_EP_PERF_PARAM_FIELD_MESSAGE_SIZE |
                         UCP_EP_PERF_PARAM_FIELD_RKEY         |
@@ -317,13 +319,12 @@ nixl_status_t nixlUcxEp::estimateCost(nixlUcxMem &mem,
         NIXL_ERROR << "ucp_ep_evaluate_perf failed: " << ucs_status_string(status);
         return NIXL_ERR_BACKEND;
     }
-    if (!(cost_result.field_mask & UCP_EP_PERF_ATTR_FIELD_ESTIMATED_TIME)) {
-        NIXL_ERROR << "ucp_ep_evaluate_perf failed: no duration returned";
-        return NIXL_ERR_BACKEND;
-    }
 
     duration = std::chrono::duration<double>(cost_result.estimated_time);
     return NIXL_SUCCESS;
+#else
+    return NIXL_ERR_NOT_SUPPORTED;
+#endif
 }
 
 nixl_status_t nixlUcxEp::flushEp(nixlUcxReq &req)
