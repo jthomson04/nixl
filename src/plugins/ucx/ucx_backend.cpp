@@ -885,16 +885,9 @@ nixl_status_t nixlUcxEngine::estimateXferCost (const nixl_xfer_op_t &operation,
         nixlUcxPrivateMetadata *lmd = static_cast<nixlUcxPrivateMetadata*>(local[i].metadataP);
         nixlUcxPublicMetadata *rmd = static_cast<nixlUcxPublicMetadata*>(remote[i].metadataP);
 
-        if (!lmd || !rmd) {
-            NIXL_ERROR << "Null metadata found in descriptor lists at index " << i << " during cost estimation";
-            return NIXL_ERR_INVALID_PARAM;
-        }
-
-        if (lsize != rsize) {
-            NIXL_ERROR << "Local size (" << lsize << ") != Remote size (" << rsize
-                       << ") at index " << i << " during cost estimation";
-            return NIXL_ERR_INVALID_PARAM;
-        }
+        NIXL_ASSERT(lmd && rmd) << "No metadata found in descriptor lists at index " << i << " during cost estimation";
+        NIXL_ASSERT(lsize == rsize) << "Local size (" << lsize << ") != Remote size (" << rsize
+                                    << ") at index " << i << " during cost estimation";
 
         std::chrono::duration<double> msg_duration;
         nixl_status_t ret = rmd->conn->getEp(workerId)->estimateCost(lmd->mem, rmd->getRkey(workerId), lsize, operation, msg_duration);
