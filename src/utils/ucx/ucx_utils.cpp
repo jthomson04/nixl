@@ -298,10 +298,10 @@ nixl_status_t nixlUcxEp::estimateCost(nixlUcxMem &mem,
             return NIXL_ERR_INVALID_PARAM;
     }
     ucp_ep_evaluate_perf_param_t params = {
-        .field_mask = UCP_EP_PERF_PARAM_FIELD_MESSAGE_SIZE |
-                      UCP_EP_PERF_PARAM_FIELD_RKEY         |
-                      UCP_EP_PERF_PARAM_FIELD_MEM_H        |
-                      UCP_EP_PERF_PARAM_FIELD_OP_TYPE,
+        .field_mask   = UCP_EP_PERF_PARAM_FIELD_MESSAGE_SIZE |
+                        UCP_EP_PERF_PARAM_FIELD_RKEY         |
+                        UCP_EP_PERF_PARAM_FIELD_MEM_H        |
+                        UCP_EP_PERF_PARAM_FIELD_OP_TYPE,
         .message_size = size,
         .rkey         = rk.rkeyh,
         .mem_h        = mem.memh,
