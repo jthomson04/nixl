@@ -132,7 +132,7 @@ public:
      * @param rk             Remote memory Rkey handle.
      * @param size           Size of the transfer.
      * @param nixl_op        NIXL operation type.
-     * @param duration_sec   [out] Estimated duration in seconds.
+     * @param duration       [out] Estimated duration.
      * @return nixl_status_t NIXL_SUCCESS on success,
      *                       error code otherwise.
      */
@@ -141,7 +141,7 @@ public:
                                nixlUcxRkey &rk,
                                size_t size,
                                nixl_xfer_op_t nixl_op,
-                               double& duration_sec);
+                               std::chrono::duration<double> &duration);
 
     void reqRelease(nixlUcxReq req);
     void reqCancel(nixlUcxReq req);

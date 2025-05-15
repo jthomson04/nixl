@@ -477,7 +477,7 @@ nixl_status_t nixlUcxWorker::estimateCost(nixlUcxEp ep,
                                           nixlUcxRkey &rk,
                                           size_t size,
                                           nixl_xfer_op_t nixl_op,
-                                          double& duration_sec)
+                                          std::chrono::duration<double> &duration)
 {
     ucp_ep_cost_op_type_t ucx_op_type;
     switch (nixl_op) {
@@ -516,7 +516,7 @@ nixl_status_t nixlUcxWorker::estimateCost(nixlUcxEp ep,
         return NIXL_ERR_BACKEND;
     }
 
-    duration_sec = cost_result.estimated_time;
+    duration = std::chrono::duration<double>(cost_result.estimated_time);
     return NIXL_SUCCESS;
 }
 

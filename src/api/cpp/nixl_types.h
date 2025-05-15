@@ -118,60 +118,6 @@ using nixl_b_params_t = std::unordered_map<std::string, std::string>;
 using nixl_notifs_t = std::unordered_map<std::string, std::vector<nixl_blob_t>>;
 
 /**
- * @enum nixl_cost_estimate_fields_t
- * @brief Defines the nixlCostEstimate field masks.
- */
-enum nixl_cost_estimate_fields_t {
-    NIXL_COST_ESTIMATE_DURATION = 1 << 0,
-};
-
-/**
- * @class nixlCostEstimate
- * @brief Cost estimation for a transfer request.
- */
-class nixlCostEstimate {
-    public:
-        nixlCostEstimate(uint64_t requested_fields = 0) : field_mask(requested_fields), duration(0.0) {}
-
-        /**
-         * @brief Get the duration of the transfer.
-         * @return The duration of the transfer in seconds.
-         */
-        double getDuration() const {
-            if (this->field_mask & NIXL_COST_ESTIMATE_DURATION) {
-                return this->duration;
-            }
-            return 0.0;
-        }
-
-        /**
-         * @brief Set the duration of the transfer.
-         * @param duration The duration of the transfer in seconds.
-         */
-        void setDuration(double duration) {
-            if (this->field_mask & NIXL_COST_ESTIMATE_DURATION) {
-                this->duration = duration;
-            }
-        }
-
-    private:
-        /**
-         * @var field_mask A bitmask to indicate which fields are known by the code that
-         * constructs the object.
-         * Getters and setters must not access unknown fields.
-         * This ensures ABI compatibility in case client code compiled against an older
-         * library version is used with a newer library.
-         * Code changes may add new fields to the class, which must be appended to the end.
-         */
-        uint64_t field_mask;
-
-        /**
-         * @var duration Estimated transfer duration in seconds.
-         */
-        double duration;
-};
-
-/**
  * @brief A constant to define the default communication port.
  */
 constexpr int default_comm_port = 8888;

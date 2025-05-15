@@ -213,7 +213,7 @@ class nixlUcxEngine : public nixlBackendEngine {
          * @param local          Local metadata descriptor list.
          * @param remote         Remote metadata descriptor list.
          * @param remote_agent   Remote agent name.
-         * @param estimate       Pointer to nixlCostEstimate structure to store the result.
+         * @param duration [out] Estimated duration of the transfer.
          * @return nixl_status_t NIXL_SUCCESS if cost estimation is successful,
          *                       error code on other errors.
          */
@@ -221,7 +221,7 @@ class nixlUcxEngine : public nixlBackendEngine {
                                        const nixl_meta_dlist_t &local,
                                        const nixl_meta_dlist_t &remote,
                                        const std::string &remote_agent,
-                                       nixlCostEstimate &estimate) override;
+                                       std::chrono::duration<double> &duration) override;
 
         nixl_status_t postXfer (const nixl_xfer_op_t &operation,
                                 const nixl_meta_dlist_t &local,

@@ -833,7 +833,7 @@ nixl_status_t nixlUcxEngine::estimateXferCost (const nixl_xfer_op_t &operation,
                                                const nixl_meta_dlist_t &local,
                                                const nixl_meta_dlist_t &remote,
                                                const std::string &agent_name,
-                                               nixlCostEstimate &estimate)
+                                               std::chrono::duration<double> &duration)
 {
     if (local.descCount() != remote.descCount()) {
         NIXL_ERROR << "Local (" << local.descCount() << ") and remote (" << remote.descCount()
@@ -843,11 +843,10 @@ nixl_status_t nixlUcxEngine::estimateXferCost (const nixl_xfer_op_t &operation,
 
     if (local.descCount() == 0) {
         // Nothing to do
-        estimate.setDuration(0);
+        duration = std::chrono::duration<double>(0);
         return NIXL_SUCCESS;
     }
 
-    double total_duration_sec = 0.0;
     for (int i = 0; i < local.descCount(); i++) {
         size_t lsize = local[i].len;
         size_t rsize = remote[i].len;
@@ -866,22 +865,21 @@ nixl_status_t nixlUcxEngine::estimateXferCost (const nixl_xfer_op_t &operation,
             return NIXL_ERR_INVALID_PARAM;
         }
 
-        double duration_sec = 0.0;
+        std::chrono::duration<double> msg_duration;
         nixl_status_t ret = uw->estimateCost(rmd->conn.ep,    // Remote Endpoint
                                              lmd->mem,        // Local buffer address
                                              rmd->rkey,       // Remote buffer address
                                              lsize,           // Message size
                                              operation,       // NIXL operation type
-                                             duration_sec);   // Output duration
+                                             msg_duration);   // Output duration
         if (ret != NIXL_SUCCESS) {
             NIXL_ERROR << "Worker failed to estimate cost for segment " << i << " status: " << ret;
             return ret;
         }
 
-        total_duration_sec += duration_sec;
+        duration += msg_duration;
     }
 
-    estimate.setDuration(total_duration_sec);
     return NIXL_SUCCESS;
 }
 
