@@ -112,24 +112,15 @@ class nixlBackendEngine {
                                         const std::string &remote_agent,
                                         nixlBackendReqH* &handle,
                                         const nixl_opt_b_args_t* opt_args=nullptr
-                                       ) = 0;
+                                       ) const = 0;
 
-        /**
-         * @brief Estimate the cost (duration) of a transfer operation.
-         *
-         * @param operation      NIXL operation type (NIXL_READ or NIXL_WRITE).
-         * @param local          Local metadata descriptor list.
-         * @param remote         Remote metadata descriptor list.
-         * @param remote_agent   Remote agent name.
-         * @param duration [out] Estimated duration of the transfer.
-         * @return nixl_status_t NIXL_SUCCESS if cost estimation is successful,
-         *                       error code on other errors.
-         */
+        // Estimate the cost (duration) of a transfer operation.
         virtual nixl_status_t estimateXferCost(const nixl_xfer_op_t &operation,
                                                const nixl_meta_dlist_t &local,
                                                const nixl_meta_dlist_t &remote,
                                                const std::string &remote_agent,
-                                               std::chrono::duration<double> &duration)
+                                               nixlBackendReqH* const &handle,
+                                               std::chrono::duration<double> &duration) const
         {
             return NIXL_ERR_NOT_SUPPORTED;
         }
@@ -141,13 +132,13 @@ class nixlBackendEngine {
                                         const std::string &remote_agent,
                                         nixlBackendReqH* &handle,
                                         const nixl_opt_b_args_t* opt_args=nullptr
-                                       ) = 0;
+                                       ) const = 0;
 
         // Use a handle to progress backend engine and see if a transfer is completed or not
-        virtual nixl_status_t checkXfer(nixlBackendReqH* handle) = 0;
+        virtual nixl_status_t checkXfer(nixlBackendReqH* handle) const = 0;
 
         //Backend aborts the transfer if necessary, and destructs the relevant objects
-        virtual nixl_status_t releaseReqH(nixlBackendReqH* handle) = 0;
+        virtual nixl_status_t releaseReqH(nixlBackendReqH* handle) const = 0;
 
 
         // *** Needs to be implemented if supportsRemote() is true *** //
@@ -194,7 +185,7 @@ class nixlBackendEngine {
         virtual nixl_status_t getNotifs(notif_list_t &notif_list) { return NIXL_ERR_BACKEND; }
 
         // Generates a standalone notification, not bound to a transfer.
-        virtual nixl_status_t genNotif(const std::string &remote_agent, const std::string &msg) {
+        virtual nixl_status_t genNotif(const std::string &remote_agent, const std::string &msg) const {
             return NIXL_ERR_BACKEND;
         }
 

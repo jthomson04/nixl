@@ -26,6 +26,7 @@
 #include "nixl_types.h"
 #include "nixl_params.h"
 #include "nixl_descriptors.h"
+#include <memory>
 
 /**
  * @class nixlAgent
@@ -34,7 +35,7 @@
 class nixlAgent {
     private:
         /** @var  data  The members in agent class wrapped into single nixlAgentData member. */
-        nixlAgentData* data;
+        std::unique_ptr<nixlAgentData> data;
 
     public:
         /*** Initialization and Registering Methods ***/
@@ -51,6 +52,10 @@ class nixlAgent {
          * @brief Destructor for nixlAgent object
          */
         ~nixlAgent ();
+
+        /* Declare move operations (needed because we declared a destructor) */
+        nixlAgent(nixlAgent&&) noexcept;
+        nixlAgent &operator=(nixlAgent&&) noexcept;
 
         /**
          * @brief  Discover the available supported plugins found in the plugin paths
@@ -262,7 +267,7 @@ class nixlAgent {
          * @return nixl_status_t NIXL_IN_PROG or error code if call was not successful
          */
         nixl_status_t
-        getXferStatus (nixlXferReqH* req_hndl);
+        getXferStatus (nixlXferReqH* req_hndl) const;
 
         /**
          * @brief  Query the backend associated with `req_hndl`. E.g., if for genNotif
@@ -284,7 +289,7 @@ class nixlAgent {
          * @return nixl_status_t Error code if call was not successful
          */
         nixl_status_t
-        releaseXferReq (nixlXferReqH* req_hndl);
+        releaseXferReq (nixlXferReqH* req_hndl) const;
 
         /**
          * @brief  Release the prepared descriptor list handle `dlist_hndl`
@@ -327,7 +332,7 @@ class nixlAgent {
         nixl_status_t
         genNotif (const std::string &remote_agent,
                   const nixl_blob_t &msg,
-                  const nixl_opt_args_t* extra_params = nullptr);
+                  const nixl_opt_args_t* extra_params = nullptr) const;
 
         /*** Metadata handling through side channel ***/
         /**
@@ -407,6 +412,8 @@ class nixlAgent {
          *         backends in the list and the backends' connection info are included in the metadata.
          *         If 'extra_params->ip_addr' is set, the metadata will only be sent to a single peer.
          *         If 'extra_params->port' can be set in addition to IP address, or will default to default_comm_port.
+         *         If 'extra_params->metadataLabel' is set, it will be used as the label of the partial metadata
+         *         to be sent. Otherwise, the default label of the partial metadata will be used for sending.
          *
          * @param  descs         [in]  Descriptor list to include in the metadata
          * @param  str           [out] The serialized metadata blob
@@ -425,6 +432,9 @@ class nixlAgent {
          *                       If IP is specified, this will enable peer to peer fetching of metadata.
          *                       If IP is unspecified, this will fetch from the metadata server.
          *                       Port can be specified or defaults to default_comm_port.
+         *                       If metadataLabel is specified, it will be used as the label of the metadata
+         *                       to be fetched, which can be partial metadata. Otherwise, the default label
+         *                       of the full metadata will be used for fetching.
          *
          * @return nixl_status_t    Error code if call was not successful
          */
@@ -437,7 +447,8 @@ class nixlAgent {
          *
          * @param  extra_params  Only to optionally specify IP address and/or port.
          *                       If IP is specified, this will enable peer to peer invalidation of metadata.
-         *                       If IP is unspecified, this will invalidate from the metadata server.
+         *                       If IP is unspecified, this will invalidate all agent's labels
+         *                       from the metadata server.
          *                       Port can be specified or defaults to default_comm_port.
          *
          * @return nixl_status_t    Error code if call was not successful

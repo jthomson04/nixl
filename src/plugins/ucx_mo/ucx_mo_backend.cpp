@@ -148,7 +148,7 @@ nixlUcxMoEngine::getEngIdx(nixl_mem_t type, uint64_t devId)
 }
 
 string
-nixlUcxMoEngine::getEngName(const string &baseName, uint32_t eidx)
+nixlUcxMoEngine::getEngName(const string &baseName, uint32_t eidx) const
 {
     return baseName + ":" + to_string(eidx);
 }
@@ -189,14 +189,13 @@ nixlUcxMoEngine::nixlUcxMoEngine(const nixlBackendInitParams* init_params):
     setEngCnt(num_ucx_engines);
     // Initialize required number of engines
     for (uint32_t i = 0; i < getEngCnt(); i++) {
-        nixlBackendEngine *e;
-        e = (nixlBackendEngine *)new nixlUcxEngine(init_params);
-        engines.push_back(e);
-        if (engines[0]->getInitErr()) {
+        auto e = std::make_unique<nixlUcxEngine>(init_params);
+        if (e->getInitErr()) {
             this->initErr = true;
             // TODO: Log error
             return;
         }
+        engines.push_back(std::move(e));
     }
 }
 
@@ -206,13 +205,6 @@ nixlUcxMoEngine::getSupportedMems () const {
     mems.push_back(DRAM_SEG);
     mems.push_back(VRAM_SEG);
     return mems;
-}
-
-nixlUcxMoEngine::~nixlUcxMoEngine()
-{
-    for( auto &e : engines ) {
-        delete e;
-    }
 }
 
 /****************************************
@@ -351,7 +343,7 @@ nixlUcxMoEngine::registerMem (const nixlBlobDesc &mem,
                               const nixl_mem_t &nixl_mem,
                               nixlBackendMD* &out)
 {
-    nixlUcxMoPrivateMetadata *priv = new nixlUcxMoPrivateMetadata;
+    auto priv = std::make_unique<nixlUcxMoPrivateMetadata>();
     int32_t eidx = getEngIdx(nixl_mem, mem.devId);
     nixlSerDes sd;
     string str;
@@ -372,7 +364,7 @@ nixlUcxMoEngine::registerMem (const nixlBlobDesc &mem,
     }
     sd.addStr("RkeyStr", str);
     priv->rkeyStr = sd.exportStr();
-    out = (nixlBackendMD*) priv;
+    out = priv.release();
 
     return NIXL_SUCCESS;
 }
@@ -409,7 +401,7 @@ nixlUcxMoEngine::internalMDHelper (const nixl_blob_t &blob,
     nixl_status_t status;
     nixlBlobDesc input_int;
 
-    nixlUcxMoPublicMetadata *md = new nixlUcxMoPublicMetadata;
+    auto md = std::make_unique<nixlUcxMoPublicMetadata>();
 
     auto search = remoteConnMap.find(agent);
 
@@ -417,7 +409,7 @@ nixlUcxMoEngine::internalMDHelper (const nixl_blob_t &blob,
         //TODO: err: remote connection not found
         return NIXL_ERR_NOT_FOUND;
     }
-    conn = (nixlUcxMoConnection) search->second;
+    conn = search->second;
 
     status = sd.importStr(blob);
 
@@ -448,7 +440,7 @@ nixlUcxMoEngine::internalMDHelper (const nixl_blob_t &blob,
         md->int_mds.push_back(int_md);
     }
 
-    output = (nixlBackendMD*)md;
+    output = md.release();
     return NIXL_SUCCESS;
 }
 
@@ -494,7 +486,7 @@ nixlUcxMoEngine::prepXfer (const nixl_xfer_op_t &operation,
                            const nixl_meta_dlist_t &remote,
                            const std::string &remote_agent,
                            nixlBackendReqH* &handle,
-                           const nixl_opt_b_args_t *opt_args)
+                           const nixl_opt_b_args_t *opt_args) const
 {
     size_t lidx, ridx;
     size_t lidx_max, ridx_max;
@@ -515,17 +507,17 @@ nixlUcxMoEngine::prepXfer (const nixl_xfer_op_t &operation,
     }
 
     // Check that remote agent is known
-    remote_comm_it_t it = remoteConnMap.find(remote_agent);
+    const auto it = remoteConnMap.find(remote_agent);
     if(it == remoteConnMap.end()) {
         return NIXL_ERR_INVALID_PARAM;
     }
-    nixlUcxMoConnection &conn = it->second;
+    const nixlUcxMoConnection &conn = it->second;
 
     /* Allocate request and fill communication distribution matrix */
     size_t l_eng_cnt = engines.size();
     size_t r_eng_cnt = conn.num_engines;
 
-    nixlUcxMoRequestH *req = new nixlUcxMoRequestH(l_eng_cnt, r_eng_cnt);
+    auto req = std::make_unique<nixlUcxMoRequestH>(l_eng_cnt, r_eng_cnt);
 
     /* Go over all input */
     for(int i = 0; i < des_cnt; i++) {
@@ -588,7 +580,7 @@ nixlUcxMoEngine::prepXfer (const nixl_xfer_op_t &operation,
         }
     }
 
-    handle = req;
+    handle = req.release();
 
     return NIXL_SUCCESS;
 
@@ -613,7 +605,6 @@ err_clean_sub_req:
     }
 
 err_clean_req:
-    delete req;
     return NIXL_ERR_INVALID_PARAM;
 }
 
@@ -625,7 +616,7 @@ nixlUcxMoEngine::postXfer (const nixl_xfer_op_t &operation,
                            const nixl_meta_dlist_t &remote,
                            const std::string &remote_agent,
                            nixlBackendReqH* &handle,
-                           const nixl_opt_b_args_t *opt_args)
+                           const nixl_opt_b_args_t *opt_args) const
 {
     nixlUcxMoRequestH *req = (nixlUcxMoRequestH *)handle;
     bool in_progress = false;
@@ -693,7 +684,7 @@ nixlUcxMoEngine::postXfer (const nixl_xfer_op_t &operation,
 }
 
 nixl_status_t
-nixlUcxMoEngine::checkXfer (nixlBackendReqH *handle)
+nixlUcxMoEngine::checkXfer (nixlBackendReqH *handle) const
 {
     nixlUcxMoRequestH *req = (nixlUcxMoRequestH *)handle;
     nixl_status_t out_ret = NIXL_SUCCESS;
@@ -739,7 +730,7 @@ nixlUcxMoEngine::checkXfer (nixlBackendReqH *handle)
 }
 
 nixl_status_t
-nixlUcxMoEngine::releaseReqH(nixlBackendReqH* handle)
+nixlUcxMoEngine::releaseReqH(nixlBackendReqH* handle) const
 {
     nixlUcxMoRequestH *req = (nixlUcxMoRequestH *)handle;
     nixl_status_t out_ret = NIXL_SUCCESS;
@@ -782,7 +773,7 @@ nixlUcxMoEngine::getNotifs(notif_list_t &notif_list)
 }
 
 nixl_status_t
-nixlUcxMoEngine::genNotif(const string &remote_agent, const string &msg)
+nixlUcxMoEngine::genNotif(const string &remote_agent, const string &msg) const
 {
     return engines[0]->genNotif(getEngName(remote_agent, 0), msg);
 }
