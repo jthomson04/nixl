@@ -16,9 +16,10 @@
  */
 #pragma once
 
-#include <cstdbool>
-#include <cstddef>
-#include <cstdint>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
 
 #ifdef __cplusplus
 extern "C" {

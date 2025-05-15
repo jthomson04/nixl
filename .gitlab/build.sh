@@ -34,7 +34,7 @@ fi
 apt-get -qq update
 
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.86.0
-source $HOME/.cargo/env
+#source $HOME/.cargo/env
 export PATH=$HOME/.cargo/bin:$PATH
 
 apt-get -qq install -y curl \
