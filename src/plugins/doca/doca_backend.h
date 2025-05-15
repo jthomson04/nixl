@@ -137,7 +137,7 @@ class nixlDocaEngine : public nixlBackendEngine {
         // const uint8_t connection_details[DOCA_RDMA_SERVER_ADDR_LEN];	    /* Remote peer connection details */
         uint8_t ipv4_addr[4];
         size_t conn_det_len;		    /* Remote peer connection details data length */
-        volatile uint8_t connection_established[DOCA_ENG_MAX_CONN];
+        uint8_t connection_established[DOCA_ENG_MAX_CONN];
         struct doca_rdma_addr *cm_addr;		/* RDMA_CM server IPv4/IPv6/GID address */
         enum doca_rdma_addr_type cm_addr_type;		/* RDMA_CM server address type, IPv4, IPv6 or GID. Only useful for client */
 

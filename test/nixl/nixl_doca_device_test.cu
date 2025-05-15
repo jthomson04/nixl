@@ -155,13 +155,14 @@ bool allBytesAre(void* buffer, size_t size, uint8_t value) {
 
 std::string recvFromTarget(int port) {
     nixlMDStreamListener listener(port);
-    listener.startListenerForClient();
+    listener.setupListenerSync();
+    listener.acceptClient();
     return listener.recvFromClient();
 }
 
 void sendToInitiator(const char *ip, int port, std::string data) {
     nixlMDStreamClient client(ip, port);
-    client.connectListener();
+    client.connectListenerSync();
     client.sendData(data);
 }
 

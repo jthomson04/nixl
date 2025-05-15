@@ -427,11 +427,6 @@ nixlDocaEngine::nixlDocaEngine (const nixlBackendInitParams* init_params)
 						    (uint8_t *)ipv4_addr,
 						    DOCA_DEVINFO_IPV4_ADDR_SIZE);
 
-	// result = doca_rdma_export(rdma, &(connection_details), &(conn_det_len), &connection);
-	// if (result != DOCA_SUCCESS) {
-	// 	DOCA_LOG_ERR("Failed to export RDMA with connection details");
-	// }
-
 	//GDRCopy
 	result = doca_gpu_mem_alloc(gdevs[0].second, sizeof(struct docaXferReqGpu) * DOCA_XFER_REQ_MAX,
 		4096,
@@ -444,16 +439,7 @@ nixlDocaEngine::nixlDocaEngine (const nixlBackendInitParams* init_params)
 
 	cudaMemset(xferReqRingGpu, 0, sizeof(struct docaXferReqGpu) * DOCA_XFER_REQ_MAX);
 
-	// result = doca_gpu_mem_alloc(gdevs[0].second, sizeof(struct nixlXferReqHGpu) * DOCA_XFER_REQ_MAX,
-	// 	4096,
-	// 	DOCA_GPU_MEM_TYPE_GPU_CPU,
-	// 	(void **)&xferReqHndlGpu,
-	// 	(void **)&xferReqHndlCpu);
-	// if (result != DOCA_SUCCESS || xferReqHndlGpu == NULL || xferReqHndlCpu == NULL) {
-	// 	DOCA_LOG_ERR("Function doca_gpu_mem_alloc returned %s", doca_error_get_descr(result));
-	// }
-
-	// cudaMemset(xferReqHndlGpu, 0, sizeof(struct nixlXferReqHGpu) * DOCA_XFER_REQ_MAX);
+	memset(connection_established, 0, DOCA_ENG_MAX_CONN);
 
 	// We may need a GPU warmup with relevant DOCA engine kernels
 	doca_kernel_write(0, rdma_gpu, nullptr, 0);
@@ -600,12 +586,6 @@ nixl_status_t nixlDocaEngine::loadRemoteConnInfo(const std::string &remote_agent
 		DOCA_LOG_ERR("Failed to connect to remote peer %d, connection error", last_connection_num);
 		// handle graceful exit
 	}
-
-	// result = doca_rdma_connect(rdma, addr, size, connection);
-	// if (result != DOCA_SUCCESS) {
-	// 	DOCA_LOG_ERR("Function doca_rdma_connect failed: %s", doca_error_get_descr(result));
-	// 	return NIXL_ERR_BACKEND;
-	// }
 
 	conn.remoteAgent = remote_agent;
 	conn.connected = true;
