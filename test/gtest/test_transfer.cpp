@@ -16,6 +16,7 @@
  */
 
 #include "common.h"
+#include "mem_buffer.h"
 #include "gtest/gtest.h"
 
 #include "nixl.h"
@@ -27,68 +28,13 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <functional>
 
 #ifdef HAVE_CUDA
 #include <cuda_runtime.h>
 #endif
 
 namespace gtest {
-
-class MemBuffer : std::shared_ptr<void> {
-public:
-    MemBuffer(size_t size, nixl_mem_t mem_type = DRAM_SEG) :
-        std::shared_ptr<void>(allocate(size, mem_type),
-                              [&mem_type](void *ptr) {
-                                  release(ptr, mem_type);
-                              }),
-        size(size)
-    {
-    }
-
-    operator uintptr_t() const
-    {
-        return reinterpret_cast<uintptr_t>(get());
-    }
-
-    size_t getSize() const
-    {
-        return size;
-    }
-
-private:
-    static void *allocate(size_t size, nixl_mem_t mem_type)
-    {
-        switch (mem_type) {
-        case DRAM_SEG:
-            return malloc(size);
-#ifdef HAVE_CUDA
-        case VRAM_SEG:
-            void *ptr;
-            return cudaSuccess == cudaMalloc(&ptr, size)? ptr : nullptr;
-#endif
-        default:
-            return nullptr; // TODO
-        }
-    }
-
-    static void release(void *ptr, nixl_mem_t mem_type)
-    {
-        switch (mem_type) {
-        case DRAM_SEG:
-            free(ptr);
-            break;
-#ifdef HAVE_CUDA
-        case VRAM_SEG:
-            cudaFree(ptr);
-            break;
-#endif
-        default:
-            return; // TODO
-        }
-    }
-
-    const size_t size;
-};
 
 class TestTransfer : public testing::TestWithParam<std::string> {
 protected:
@@ -155,21 +101,20 @@ protected:
         return agents[local]->checkRemoteMD(getAgentName(remote), descs);
     }
 
-    template<typename Desc>
+    template<typename Desc, nixl_mem_t MemType>
     nixlDescList<Desc>
-    makeDescList(const std::vector<MemBuffer> &buffers, nixl_mem_t mem_type)
-    {
-        nixlDescList<Desc> desc_list(mem_type);
+    makeDescList(const std::vector<MemBuffer<MemType>> &buffers) {
+        nixlDescList<Desc> desc_list(MemType);
         for (const auto &buffer : buffers) {
-            desc_list.addDesc(Desc(buffer, buffer.getSize(), DEV_ID));
+            desc_list.addDesc(Desc(buffer.data(), buffer.size(), DEV_ID));
         }
         return desc_list;
     }
 
-    void registerMem(nixlAgent &agent, const std::vector<MemBuffer> &buffers,
-                     nixl_mem_t mem_type)
+    template<nixl_mem_t MemType>
+    void registerMem(nixlAgent &agent, const std::vector<MemBuffer<MemType>> &buffers)
     {
-        auto reg_list = makeDescList<nixlBlobDesc>(buffers, mem_type);
+        auto reg_list = makeDescList<nixlBlobDesc, MemType>(buffers);
         agent.registerMem(reg_list);
     }
 
@@ -245,36 +190,39 @@ protected:
         EXPECT_EQ(notif_list.front(), NOTIF_MSG);
     }
 
-    void createRegisteredMem(nixlAgent& agent,
-                             size_t size, size_t count,
-                             nixl_mem_t mem_type,
-                             std::vector<MemBuffer>& out)
-    {
-        while (count-- != 0) {
-            out.emplace_back(size, mem_type);
+    template<nixl_mem_t LocalMemType, nixl_mem_t RemoteMemType>
+    void
+    doTransfer(nixlAgent &from,
+               const std::string &from_name,
+               nixlAgent &to,
+               const std::string &to_name,
+               size_t size,
+               size_t count,
+               size_t repeat,
+               std::function<void()> setup_md) {
+        std::vector<MemBuffer<LocalMemType>> local_buffers;
+        std::vector<MemBuffer<RemoteMemType>> remote_buffers;
+        for (size_t i = 0; i < count; i++) {
+            local_buffers.emplace_back(size);
+            remote_buffers.emplace_back(size);
         }
 
-        registerMem(agent, out, mem_type);
-    }
+        registerMem(from, local_buffers);
+        registerMem(to, remote_buffers);
+        setup_md();
 
-    void doTransfer(nixlAgent &from, const std::string &from_name,
-                    nixlAgent &to, const std::string &to_name, size_t size,
-                    size_t count, size_t repeat,
-                    nixl_mem_t src_mem_type,
-                    std::vector<MemBuffer> src_buffers,
-                    nixl_mem_t dst_mem_type,
-                    std::vector<MemBuffer> dst_buffers)
-    {
         nixl_opt_args_t extra_params;
         extra_params.hasNotif = true;
         extra_params.notifMsg = NOTIF_MSG;
 
         nixlXferReqH *xfer_req = nullptr;
-        nixl_status_t status   = from.createXferReq(
-                NIXL_WRITE,
-                makeDescList<nixlBasicDesc>(src_buffers, src_mem_type),
-                makeDescList<nixlBasicDesc>(dst_buffers, dst_mem_type), to_name,
-                xfer_req, &extra_params);
+        nixl_status_t status =
+                from.createXferReq(NIXL_WRITE,
+                                   makeDescList<nixlBasicDesc, LocalMemType>(local_buffers),
+                                   makeDescList<nixlBasicDesc, RemoteMemType>(remote_buffers),
+                                   to_name,
+                                   xfer_req,
+                                   &extra_params);
         ASSERT_EQ(status, NIXL_SUCCESS);
         EXPECT_NE(xfer_req, nullptr);
 
@@ -291,9 +239,9 @@ protected:
         auto total_time = absl::ToDoubleSeconds(absl::Now() - start_time);
 
         auto total_size = size * count * repeat;
-        auto bandwidth  = total_size / total_time / (1024 * 1024 * 1024);
-        Logger() << size << "x" << count << "x" << repeat << "=" << total_size
-                 << " bytes in " << total_time << " seconds "
+        auto bandwidth = total_size / total_time / (1024 * 1024 * 1024);
+        Logger() << size << "x" << count << "x" << repeat << "=" << total_size << " bytes in "
+                 << total_time << " seconds "
                  << "(" << bandwidth << " GB/s)";
 
         status = from.releaseXferReq(xfer_req);
@@ -323,45 +271,46 @@ private:
 
 const std::string TestTransfer::NOTIF_MSG = "notification";
 
-TEST_P(TestTransfer, RandomSizes)
-{
+TEST_P(TestTransfer, RandomSizes) {
     // Tuple fields are: size, count, repeat
     constexpr std::array<std::tuple<size_t, size_t, size_t>, 4> test_cases = {
-        {{40, 1000, 1},
-         {4096, 8, 3},
-         {32768, 64, 3},
-         {1000000, 100, 3}}
-    };
+            {{40, 1000, 1}, {4096, 8, 3}, {32768, 64, 3}, {1000000, 100, 3}}};
 
     for (const auto &[size, count, repeat] : test_cases) {
-        std::vector<MemBuffer> src_buffers, dst_buffers;
-
-        createRegisteredMem(getAgent(0), size, count, DRAM_SEG, src_buffers);
-        createRegisteredMem(getAgent(1), size, count, DRAM_SEG, dst_buffers);
-
-        exchangeMD();
-        doTransfer(getAgent(0), getAgentName(0), getAgent(1), getAgentName(1),
-                   size, count, repeat,
-                   DRAM_SEG, src_buffers,
-                   DRAM_SEG, dst_buffers);
+        doTransfer<DRAM_SEG, DRAM_SEG>(getAgent(0),
+                                       getAgentName(0),
+                                       getAgent(1),
+                                       getAgentName(1),
+                                       size,
+                                       count,
+                                       repeat,
+                                       [this]() { exchangeMD(); });
     }
 }
 
-TEST_P(TestTransfer, remoteMDFromSocket)
-{
-    std::vector<MemBuffer> src_buffers, dst_buffers;
+TEST_P(TestTransfer, remoteMDFromSocket) {
     constexpr size_t size = 16 * 1024;
     constexpr size_t count = 4;
-    nixl_mem_t mem_type = m_cuda_device? VRAM_SEG : DRAM_SEG;
 
-    createRegisteredMem(getAgent(0), size, count, mem_type, src_buffers);
-    createRegisteredMem(getAgent(1), size, count, mem_type, dst_buffers);
-
-    exchangeMDIP();
-    doTransfer(getAgent(0), getAgentName(0), getAgent(1), getAgentName(1),
-               size, count, 1,
-               mem_type, src_buffers,
-               mem_type, dst_buffers);
+    if (m_cuda_device) {
+        doTransfer<VRAM_SEG, VRAM_SEG>(getAgent(0),
+                                       getAgentName(0),
+                                       getAgent(1),
+                                       getAgentName(1),
+                                       size,
+                                       count,
+                                       1,
+                                       [this]() { exchangeMDIP(); });
+    } else {
+        doTransfer<DRAM_SEG, DRAM_SEG>(getAgent(0),
+                                       getAgentName(0),
+                                       getAgent(1),
+                                       getAgentName(1),
+                                       size,
+                                       count,
+                                       1,
+                                       [this]() { exchangeMDIP(); });
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(ucx, TestTransfer, testing::Values("UCX"));
