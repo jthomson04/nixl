@@ -29,6 +29,13 @@ template<> class MemBuffer<DRAM_SEG> {
 public:
     MemBuffer(size_t size) : buffer_(size) {}
 
+    MemBuffer(std::vector<uint8_t> &&data) : buffer_(std::move(data)) {}
+
+    bool
+    operator==(const MemBuffer<DRAM_SEG> &other) const {
+        return buffer_ == other.buffer_;
+    }
+
     uintptr_t
     data() const {
         return reinterpret_cast<uintptr_t>(buffer_.data());
@@ -60,6 +67,10 @@ public:
         }
     }
 
+    MemBuffer(std::vector<uint8_t> &&data) : MemBuffer(data.size()) {
+        // TODO
+    }
+
     ~MemBuffer() {
         if (buffer_) {
             cudaFree(buffer_);
@@ -87,6 +98,12 @@ public:
             other.size_ = 0;
         }
         return *this;
+    }
+
+    bool
+    operator==(const MemBuffer<VRAM_SEG> &other) const {
+        // TODO
+        return true;
     }
 
     uintptr_t

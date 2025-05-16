@@ -29,6 +29,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <random>
 
 #ifdef HAVE_CUDA
 #include <cuda_runtime.h>
@@ -38,6 +39,8 @@ namespace gtest {
 
 class TestTransfer : public testing::TestWithParam<std::string> {
 protected:
+    TestTransfer() : rd(), gen(rd()), distrib() {}
+
     static nixlAgentConfig getConfig(int listen_port)
     {
         return nixlAgentConfig(false, listen_port > 0, listen_port,
@@ -203,7 +206,7 @@ protected:
         std::vector<MemBuffer<LocalMemType>> local_buffers;
         std::vector<MemBuffer<RemoteMemType>> remote_buffers;
         for (size_t i = 0; i < count; i++) {
-            local_buffers.emplace_back(size);
+            local_buffers.emplace_back(createRandomData<LocalMemType>(size));
             remote_buffers.emplace_back(size);
         }
 
@@ -247,6 +250,12 @@ protected:
         status = from.releaseXferReq(xfer_req);
         EXPECT_EQ(status, NIXL_SUCCESS);
 
+        // Verify transfer was successful
+        for (size_t i = 0; i < count; i++) {
+            EXPECT_EQ(local_buffers[i], remote_buffers[i])
+                    << "Transfer validation failed for buffer " << i;
+        }
+
         invalidateMD();
     }
 
@@ -260,6 +269,23 @@ protected:
         return absl::StrFormat("agent_%d", idx);
     }
 
+    template<nixl_mem_t MemType>
+    std::vector<uint8_t>
+    createRandomData(size_t size) {
+        size_t aligned_size = (size + 7) & ~7;
+        std::vector<uint8_t> data(aligned_size);
+
+        for (size_t i = 0; i < aligned_size; i += 8) {
+            uint64_t rand_val = distrib(gen);
+            for (size_t j = 0; j < 8; ++j) {
+                data[i + j] = static_cast<uint8_t>(rand_val >> (j * 8));
+            }
+        }
+
+        data.resize(size);
+        return data;
+    }
+
     bool m_cuda_device = false;
 
 private:
@@ -267,6 +293,9 @@ private:
     static const std::string NOTIF_MSG;
 
     std::vector<std::unique_ptr<nixlAgent>> agents;
+    std::random_device rd;
+    std::mt19937_64 gen;
+    std::uniform_int_distribution<uint64_t> distrib;
 };
 
 const std::string TestTransfer::NOTIF_MSG = "notification";
