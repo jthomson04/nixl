@@ -30,6 +30,7 @@
 #include <vector>
 #include <functional>
 #include <random>
+#include <set>
 
 #ifdef HAVE_CUDA
 #include <cuda_runtime.h>
@@ -41,10 +42,13 @@ class TestTransfer : public testing::TestWithParam<std::string> {
 protected:
     TestTransfer() : rd(), gen(rd()), distrib() {}
 
-    static nixlAgentConfig getConfig(int listen_port)
-    {
-        return nixlAgentConfig(false, listen_port > 0, listen_port,
-                               nixl_thread_sync_t::NIXL_THREAD_SYNC_STRICT, 0,
+    static nixlAgentConfig
+    getConfig(int listen_port) {
+        return nixlAgentConfig(true,
+                               listen_port > 0,
+                               listen_port,
+                               nixl_thread_sync_t::NIXL_THREAD_SYNC_STRICT,
+                               0,
                                100000);
     }
 
@@ -171,26 +175,18 @@ protected:
         }
     }
 
-    void waitForXfer(nixlAgent &from, const std::string &from_name,
-                     nixlAgent &to, nixlXferReqH *xfer_req)
-    {
-        nixl_notifs_t notif_map;
+    void
+    waitForXfer(nixlAgent &from,
+                const std::string &from_name,
+                nixlAgent &to,
+                nixlXferReqH *xfer_req) {
         bool xfer_done;
         do {
-            // progress on "from" agent while waiting for notification
+            // progress on "from" agent while waiting for completion
             nixl_status_t status = from.getXferStatus(xfer_req);
             EXPECT_TRUE((status == NIXL_SUCCESS) || (status == NIXL_IN_PROG));
             xfer_done = (status == NIXL_SUCCESS);
-
-            // Get notifications and progress all agents to avoid deadlocks
-            status = to.getNotifs(notif_map);
-            ASSERT_EQ(status, NIXL_SUCCESS);
-        } while (notif_map.empty() || !xfer_done);
-
-        // Expect the notification from the right agent
-        auto &notif_list = notif_map[from_name];
-        EXPECT_EQ(notif_list.size(), 1u);
-        EXPECT_EQ(notif_list.front(), NOTIF_MSG);
+        } while (!xfer_done);
     }
 
     template<nixl_mem_t LocalMemType, nixl_mem_t RemoteMemType>
@@ -204,7 +200,8 @@ protected:
                size_t batch_size,
                size_t repeat,
                nixl_xfer_op_t mode,
-               std::function<void()> setup_md) {
+               std::function<void()> setup_md,
+               const std::vector<std::string> &expected_notifs) {
         std::vector<MemBuffer<LocalMemType>> local_buffers;
         std::vector<MemBuffer<RemoteMemType>> remote_buffers;
         for (size_t i = 0; i < count; i++) {
@@ -221,16 +218,17 @@ protected:
         registerMem(to, remote_buffers);
         setup_md();
 
-        nixl_opt_args_t extra_params;
-        extra_params.hasNotif = true;
-        extra_params.notifMsg = NOTIF_MSG;
-
         auto start_time = absl::Now();
         size_t total_transferred = 0;
+        size_t notif_idx = 0;
 
         for (size_t i = 0; i < repeat; i++) {
             for (size_t batch_start = 0; batch_start < count; batch_start += batch_size) {
                 size_t batch_end = std::min(batch_start + batch_size, count);
+
+                nixl_opt_args_t extra_params;
+                extra_params.hasNotif = true;
+                extra_params.notifMsg = expected_notifs[notif_idx++];
 
                 nixlXferReqH *xfer_req = nullptr;
                 nixl_status_t status = from.createXferReq(
@@ -277,6 +275,55 @@ protected:
         invalidateMD();
     }
 
+    template<nixl_mem_t LocalMemType, nixl_mem_t RemoteMemType>
+    void
+    doTransfers(nixlAgent &from,
+                const std::string &from_name,
+                nixlAgent &to,
+                const std::string &to_name,
+                size_t size,
+                size_t count,
+                size_t batch_size,
+                size_t repeat,
+                nixl_xfer_op_t mode,
+                std::function<void()> metadataSetup) {
+        std::vector<std::string> expected_notifs;
+        for (size_t i = 0; i < repeat; i++) {
+            for (size_t batch_start = 0; batch_start < count; batch_start += batch_size) {
+                size_t batch_idx = batch_start / batch_size;
+                expected_notifs.push_back(absl::StrFormat("notification_%zu", batch_idx));
+            }
+        }
+
+        doTransfer<LocalMemType, RemoteMemType>(from,
+                                                from_name,
+                                                to,
+                                                to_name,
+                                                size,
+                                                count,
+                                                batch_size,
+                                                repeat,
+                                                mode,
+                                                metadataSetup,
+                                                expected_notifs);
+
+        nixl_notifs_t notif_map;
+        nixl_status_t status = to.getNotifs(notif_map);
+        ASSERT_EQ(status, NIXL_SUCCESS);
+
+        auto &notif_list = notif_map[from_name];
+        EXPECT_EQ(notif_list.size(), expected_notifs.size())
+                << "Expected " << expected_notifs.size() << " notifications, got "
+                << notif_list.size();
+
+        std::set<std::string> expected_msgs(expected_notifs.begin(), expected_notifs.end());
+
+        for (const auto &msg : notif_list) {
+            EXPECT_TRUE(expected_msgs.find(msg) != expected_msgs.end())
+                    << "Unexpected notification message: " << msg;
+        }
+    }
+
     nixlAgent &getAgent(size_t idx)
     {
         return *agents[idx];
@@ -308,7 +355,6 @@ protected:
 
 private:
     static constexpr uint64_t DEV_ID = 0;
-    static const std::string NOTIF_MSG;
 
     std::vector<std::unique_ptr<nixlAgent>> agents;
     std::random_device rd;
@@ -316,34 +362,32 @@ private:
     std::uniform_int_distribution<uint64_t> distrib;
 };
 
-const std::string TestTransfer::NOTIF_MSG = "notification";
-
 TEST_P(TestTransfer, RandomSizes) {
     // Tuple fields are: size, count, batch_size, repeat
     constexpr std::array<std::tuple<size_t, size_t, size_t, size_t>, 4> test_cases = {
             {{40, 1000, 1, 1}, {4096, 128, 32, 3}, {32768, 32, 4, 3}, {1000000, 8, 1, 3}}};
 
     for (const auto &[size, count, batch_size, repeat] : test_cases) {
-        doTransfer<DRAM_SEG, DRAM_SEG>(getAgent(0),
-                                       getAgentName(0),
-                                       getAgent(1),
-                                       getAgentName(1),
-                                       size,
-                                       count,
-                                       batch_size,
-                                       repeat,
-                                       NIXL_WRITE,
-                                       [this]() { exchangeMD(); });
-        doTransfer<DRAM_SEG, DRAM_SEG>(getAgent(0),
-                                       getAgentName(0),
-                                       getAgent(1),
-                                       getAgentName(1),
-                                       size,
-                                       count,
-                                       batch_size,
-                                       repeat,
-                                       NIXL_READ,
-                                       [this]() { exchangeMD(); });
+        doTransfers<DRAM_SEG, DRAM_SEG>(getAgent(0),
+                                        getAgentName(0),
+                                        getAgent(1),
+                                        getAgentName(1),
+                                        size,
+                                        count,
+                                        batch_size,
+                                        repeat,
+                                        NIXL_WRITE,
+                                        [this]() { exchangeMD(); });
+        doTransfers<DRAM_SEG, DRAM_SEG>(getAgent(0),
+                                        getAgentName(0),
+                                        getAgent(1),
+                                        getAgentName(1),
+                                        size,
+                                        count,
+                                        batch_size,
+                                        repeat,
+                                        NIXL_READ,
+                                        [this]() { exchangeMD(); });
     }
 }
 
@@ -352,27 +396,27 @@ TEST_P(TestTransfer, remoteMDFromSocket) {
     constexpr size_t count = 4;
 
     if (m_cuda_device) {
-        doTransfer<VRAM_SEG, VRAM_SEG>(getAgent(0),
-                                       getAgentName(0),
-                                       getAgent(1),
-                                       getAgentName(1),
-                                       size,
-                                       count,
-                                       1,
-                                       1,
-                                       NIXL_WRITE,
-                                       [this]() { exchangeMDIP(); });
+        doTransfers<VRAM_SEG, VRAM_SEG>(getAgent(0),
+                                        getAgentName(0),
+                                        getAgent(1),
+                                        getAgentName(1),
+                                        size,
+                                        count,
+                                        1,
+                                        1,
+                                        NIXL_WRITE,
+                                        [this]() { exchangeMDIP(); });
     } else {
-        doTransfer<DRAM_SEG, DRAM_SEG>(getAgent(0),
-                                       getAgentName(0),
-                                       getAgent(1),
-                                       getAgentName(1),
-                                       size,
-                                       count,
-                                       1,
-                                       1,
-                                       NIXL_WRITE,
-                                       [this]() { exchangeMDIP(); });
+        doTransfers<DRAM_SEG, DRAM_SEG>(getAgent(0),
+                                        getAgentName(0),
+                                        getAgent(1),
+                                        getAgentName(1),
+                                        size,
+                                        count,
+                                        1,
+                                        1,
+                                        NIXL_WRITE,
+                                        [this]() { exchangeMDIP(); });
     }
 }
 
