@@ -65,7 +65,7 @@ get_options() {
         --nixl)
             if [ "$2" ]; then
                 NIXL_BUILD_CONTEXT_ARGS="--build-context nixl=$2"
-		        NIXL_SRC=$2
+                NIXL_SRC=$2
                 shift
             else
                 missing_requirement $1
