@@ -203,12 +203,18 @@ protected:
                size_t count,
                size_t batch_size,
                size_t repeat,
+               nixl_xfer_op_t mode,
                std::function<void()> setup_md) {
         std::vector<MemBuffer<LocalMemType>> local_buffers;
         std::vector<MemBuffer<RemoteMemType>> remote_buffers;
         for (size_t i = 0; i < count; i++) {
-            local_buffers.emplace_back(createRandomData<LocalMemType>(size));
-            remote_buffers.emplace_back(size);
+            if (mode == NIXL_WRITE) {
+                local_buffers.emplace_back(createRandomData<LocalMemType>(size));
+                remote_buffers.emplace_back(size);
+            } else {
+                local_buffers.emplace_back(size);
+                remote_buffers.emplace_back(createRandomData<RemoteMemType>(size));
+            }
         }
 
         registerMem(from, local_buffers);
@@ -228,11 +234,12 @@ protected:
 
                 nixlXferReqH *xfer_req = nullptr;
                 nixl_status_t status = from.createXferReq(
-                        NIXL_WRITE,
+                        mode,
                         makeDescList<nixlBasicDesc, LocalMemType>(local_buffers.begin() + batch_start,
                                                                   local_buffers.begin() + batch_end),
-                        makeDescList<nixlBasicDesc, RemoteMemType>(remote_buffers.begin() + batch_start,
-                                                                   remote_buffers.begin() + batch_end),
+                        makeDescList<nixlBasicDesc, RemoteMemType>(
+                                remote_buffers.begin() + batch_start,
+                                remote_buffers.begin() + batch_end),
                         to_name,
                         xfer_req,
                         &extra_params);
@@ -262,8 +269,9 @@ protected:
 
         auto total_time = absl::ToDoubleSeconds(absl::Now() - start_time);
         auto bandwidth = total_transferred / total_time / (1024 * 1024 * 1024);
-        Logger() << size << "x" << count << "x" << repeat << "=" << total_transferred
-                 << " bytes in " << total_time << " seconds "
+        Logger() << (mode == NIXL_WRITE ? "Write" : "Read") << " transfer: " << size << "x" << count
+                 << "x" << repeat << "=" << total_transferred << " bytes in " << total_time
+                 << " seconds "
                  << "(" << bandwidth << " GB/s)";
 
         invalidateMD();
@@ -324,6 +332,17 @@ TEST_P(TestTransfer, RandomSizes) {
                                        count,
                                        batch_size,
                                        repeat,
+                                       NIXL_WRITE,
+                                       [this]() { exchangeMD(); });
+        doTransfer<DRAM_SEG, DRAM_SEG>(getAgent(0),
+                                       getAgentName(0),
+                                       getAgent(1),
+                                       getAgentName(1),
+                                       size,
+                                       count,
+                                       batch_size,
+                                       repeat,
+                                       NIXL_READ,
                                        [this]() { exchangeMD(); });
     }
 }
@@ -341,6 +360,7 @@ TEST_P(TestTransfer, remoteMDFromSocket) {
                                        count,
                                        1,
                                        1,
+                                       NIXL_WRITE,
                                        [this]() { exchangeMDIP(); });
     } else {
         doTransfer<DRAM_SEG, DRAM_SEG>(getAgent(0),
@@ -351,6 +371,7 @@ TEST_P(TestTransfer, remoteMDFromSocket) {
                                        count,
                                        1,
                                        1,
+                                       NIXL_WRITE,
                                        [this]() { exchangeMDIP(); });
     }
 }
