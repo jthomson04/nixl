@@ -25,11 +25,6 @@
 #include <variant>
 #include <memory>
 
-struct xferBenchTransferMetrics {
-    double total_duration;
-    double estimated_duration;
-};
-
 class xferBenchWorker {
     protected:
         std::string name;
