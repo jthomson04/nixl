@@ -120,7 +120,8 @@ static int processBatchSizes(xferBenchWorker &worker,
             if (IS_PAIRWISE_AND_SG()) {
                 // TODO: This is here just to call throughput reduction
                 // Separate reduction and print
-                xferBenchUtils::printStats(true, block_size, batch_size, 0);
+                xferBenchTransferMetrics metrics = {0, 0};
+                xferBenchUtils::printStats(true, block_size, batch_size, metrics);
             }
         } else if (worker.isInitiator()) {
             std::vector<std::vector<xferBenchIOV>> remote_trans_lists(worker.exchangeIOV(local_trans_lists));
