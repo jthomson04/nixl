@@ -125,10 +125,12 @@ static int processBatchSizes(xferBenchWorker &worker,
         } else if (worker.isInitiator()) {
             std::vector<std::vector<xferBenchIOV>> remote_trans_lists(worker.exchangeIOV(local_trans_lists));
 
-            auto result = worker.transfer(block_size,
-                                          local_trans_lists,
-                                          remote_trans_lists);
-            if (std::holds_alternative<int>(result)) {
+            xferBenchTransferMetrics metrics;
+            int ret = worker.transfer(block_size,
+                                     local_trans_lists,
+                                     remote_trans_lists,
+                                     metrics);
+            if (ret != 0) {
                 return 1;
             }
 
@@ -144,8 +146,7 @@ static int processBatchSizes(xferBenchWorker &worker,
                 }
             }
 
-            xferBenchUtils::printStats(false, block_size, batch_size,
-                                    std::get<double>(result));
+            xferBenchUtils::printStats(false, block_size, batch_size, metrics);
         }
     }
 

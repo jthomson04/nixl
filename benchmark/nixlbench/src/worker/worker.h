@@ -25,6 +25,11 @@
 #include <variant>
 #include <memory>
 
+struct xferBenchTransferMetrics {
+    double total_duration;
+    double estimated_duration;
+};
+
 class xferBenchWorker {
     protected:
         std::string name;
@@ -55,9 +60,10 @@ class xferBenchWorker {
 	virtual int synchronizeStart() = 0;
 
         // Data operations
-        virtual std::variant<double, int> transfer(size_t block_size,
-                                                   const std::vector<std::vector<xferBenchIOV>> &local_iov_lists,
-                                                   const std::vector<std::vector<xferBenchIOV>> &remote_iov_lists) = 0;
+        virtual int transfer(size_t block_size,
+                             const std::vector<std::vector<xferBenchIOV>> &local_iov_lists,
+                             const std::vector<std::vector<xferBenchIOV>> &remote_iov_lists,
+                             xferBenchTransferMetrics &metrics) = 0;
 };
 
 #endif // __WORKER_H

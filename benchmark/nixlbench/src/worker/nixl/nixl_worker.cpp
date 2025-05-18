@@ -704,9 +704,10 @@ static int execTransfer(nixlAgent *agent,
     return ret;
 }
 
-std::variant<double, int> xferBenchNixlWorker::transfer(size_t block_size,
-                                               const std::vector<std::vector<xferBenchIOV>> &local_iovs,
-                                               const std::vector<std::vector<xferBenchIOV>> &remote_iovs) {
+int xferBenchNixlWorker::transfer(size_t block_size,
+                                  const std::vector<std::vector<xferBenchIOV>> &local_iovs,
+                                  const std::vector<std::vector<xferBenchIOV>> &remote_iovs,
+                                  xferBenchTransferMetrics &metrics) {
     int num_iter = xferBenchConfig::num_iter / xferBenchConfig::num_threads;
     int skip = xferBenchConfig::warmup_iter / xferBenchConfig::num_threads;
     struct timeval t_start, t_end;
@@ -723,9 +724,8 @@ std::variant<double, int> xferBenchNixlWorker::transfer(size_t block_size,
 
     std::chrono::duration<double> estimated_duration;
     ret = execTransfer(agent, local_iovs, remote_iovs, xfer_op, skip, xferBenchConfig::num_threads, estimated_duration);
-    std::cout << "Estimated transfer duration (ms): " << estimated_duration.count() * 1000 << std::endl;
     if (ret < 0) {
-        return std::variant<double, int>(ret);
+        return ret;
     }
 
     // Synchronize to ensure all processes have completed the warmup (iter and polling)
@@ -739,7 +739,9 @@ std::variant<double, int> xferBenchNixlWorker::transfer(size_t block_size,
     total_duration += (((t_end.tv_sec - t_start.tv_sec) * 1e6) +
                        (t_end.tv_usec - t_start.tv_usec)); // In us
 
-    return ret < 0 ? std::variant<double, int>(ret) : std::variant<double, int>(total_duration);
+    metrics.total_duration = total_duration;
+    metrics.estimated_duration = estimated_duration.count() * 1e6;
+    return ret;
 }
 
 void xferBenchNixlWorker::poll(size_t block_size) {
