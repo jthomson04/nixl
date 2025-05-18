@@ -633,7 +633,8 @@ static int execTransfer(nixlAgent *agent,
                         const std::vector<std::vector<xferBenchIOV>> &remote_iovs,
                         const nixl_xfer_op_t op,
                         const int num_iter,
-                        const int num_threads)
+                        const int num_threads,
+                        std::chrono::duration<double> &estimated_duration)
 {
     int ret = 0;
 
@@ -674,7 +675,7 @@ static int execTransfer(nixlAgent *agent,
 
         CHECK_NIXL_ERROR(agent->createXferReq(op, local_desc, remote_desc, target,
                                             req, &params), "createTransferReq failed");
-
+        CHECK_NIXL_ERROR(agent->estimateXferCost(*req, estimated_duration), "estimateXferCost failed");
         for (int i = 0; i < num_iter && !error; i++) {
             rc = agent->postXferReq(req);
             if (NIXL_ERR_BACKEND == rc) {
@@ -720,7 +721,9 @@ std::variant<double, int> xferBenchNixlWorker::transfer(size_t block_size,
         num_iter /= LARGE_BLOCK_SIZE_ITER_FACTOR;
     }
 
-    ret = execTransfer(agent, local_iovs, remote_iovs, xfer_op, skip, xferBenchConfig::num_threads);
+    std::chrono::duration<double> estimated_duration;
+    ret = execTransfer(agent, local_iovs, remote_iovs, xfer_op, skip, xferBenchConfig::num_threads, estimated_duration);
+    std::cout << "Estimated transfer duration (ms): " << estimated_duration.count() * 1000 << std::endl;
     if (ret < 0) {
         return std::variant<double, int>(ret);
     }
@@ -730,7 +733,7 @@ std::variant<double, int> xferBenchNixlWorker::transfer(size_t block_size,
 
     gettimeofday(&t_start, nullptr);
 
-    ret = execTransfer(agent, local_iovs, remote_iovs, xfer_op, num_iter, xferBenchConfig::num_threads);
+    ret = execTransfer(agent, local_iovs, remote_iovs, xfer_op, num_iter, xferBenchConfig::num_threads, estimated_duration);
 
     gettimeofday(&t_end, nullptr);
     total_duration += (((t_end.tv_sec - t_start.tv_sec) * 1e6) +
