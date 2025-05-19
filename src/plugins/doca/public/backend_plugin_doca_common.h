@@ -28,6 +28,10 @@ struct docaXferReqGpu {
     uintptr_t rarr[DOCA_XFER_REQ_SIZE];
     size_t size[DOCA_XFER_REQ_SIZE];
     uint16_t num;
+    uint8_t wait_launched;
+    uint8_t in_use;
+    uint32_t *last_rsvd;
+    uint32_t *last_posted;
     nixl_xfer_op_t backendOp;           /* Needed only in case of GPU device transfer */
     struct doca_gpu_dev_rdma *rdma_gpu; /* Needed only in case of GPU device transfer */
 };

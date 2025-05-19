@@ -25,6 +25,14 @@ DOCA_LOG_REGISTER(NIXL::DOCA);
  * DOCA request management
 *****************************************/
 
+static void nixlDocaEngineCheckCudaError(cudaError_t result, const char *message) {
+	if (result != cudaSuccess) {
+		std::cerr << message << " (Error code: " << result << " - "
+				   << cudaGetErrorString(result) << ")" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+}
+
 /*
  * RDMA CM connect_request callback
  *
@@ -437,9 +445,22 @@ nixlDocaEngine::nixlDocaEngine (const nixlBackendInitParams* init_params)
 		DOCA_LOG_ERR("Function doca_gpu_mem_alloc returned %s", doca_error_get_descr(result));
 	}
 
-	cudaMemset(xferReqRingGpu, 0, sizeof(struct docaXferReqGpu) * DOCA_XFER_REQ_MAX);
+	nixlDocaEngineCheckCudaError(cudaMemset(xferReqRingGpu, 0, sizeof(struct docaXferReqGpu) * DOCA_XFER_REQ_MAX), "Failed to memset GPU memory");
+
+	result = doca_gpu_mem_alloc(gdevs[0].second, sizeof(uint32_t) * 2,
+		4096,
+		DOCA_GPU_MEM_TYPE_GPU,
+		(void **)&last_flags,
+		nullptr);
+	if (result != DOCA_SUCCESS || last_flags == NULL || last_flags == NULL) {
+		DOCA_LOG_ERR("Function doca_gpu_mem_alloc returned %s", doca_error_get_descr(result));
+	}
+
+	nixlDocaEngineCheckCudaError(cudaMemset(last_flags, 0, sizeof(uint32_t) * 2), "Failed to memset GPU memory");
 
 	memset(connection_established, 0, DOCA_ENG_MAX_CONN);
+
+	nixlDocaEngineCheckCudaError(cudaStreamCreateWithFlags(&wait_stream, cudaStreamNonBlocking), "Failed to create CUDA stream");
 
 	// We may need a GPU warmup with relevant DOCA engine kernels
 	doca_kernel_write(0, rdma_gpu, nullptr, 0);
@@ -486,7 +507,9 @@ nixlDocaEngine::~nixlDocaEngine ()
 	progressThreadStop();
 
 	doca_gpu_mem_free(gdevs[0].second, xferReqRingGpu);
-	// doca_gpu_mem_free(gdevs[0].second, xferReqHndlGpu);
+	doca_gpu_mem_free(gdevs[0].second, last_flags);
+
+	cudaStreamDestroy(wait_stream);
 
 	for (uint32_t idx = 0; idx < connection_num; idx++) {
 		std::cout << "Disconnect " << idx << std::endl;
@@ -895,6 +918,9 @@ nixl_status_t nixlDocaEngine::prepXfer (const nixl_xfer_op_t &operation,
 				xferReqRingCpu[pos].num++;
 			}
 
+			xferReqRingCpu[pos].last_rsvd = last_flags;
+			xferReqRingCpu[pos].last_posted = last_flags + 1;
+			
 			if (lcnt > DOCA_XFER_REQ_SIZE) {
 				lcnt -= DOCA_XFER_REQ_SIZE;
 				pos = (xferRingPos.fetch_add(1) & (DOCA_XFER_REQ_MAX - 1));
@@ -949,12 +975,20 @@ nixl_status_t nixlDocaEngine::checkXfer(nixlBackendReqH* handle)
 	nixlDocaBckndReq *treq = (nixlDocaBckndReq *) handle;
 
 	for (uint32_t idx = treq->start_pos; idx < treq->end_pos; idx++) {
-		// printf("Checking position %d\n", idx);
-		if (xferReqRingCpu[idx].num > 0 && xferReqRingCpu[idx].num < DOCA_XFER_REQ_SIZE)
+		if (xferReqRingCpu[idx].wait_launched == 0) {
+			printf("Launch wait kernel position %d\n", idx);
+			doca_kernel_wait(wait_stream, rdma_gpu, xferReqRingGpu, idx);
+			xferReqRingCpu[idx].wait_launched = 1;
 			return NIXL_IN_PROG;
-		if (xferReqRingCpu[idx].num > DOCA_XFER_REQ_SIZE)
-			return NIXL_ERR_BACKEND;
+		} else {
+			printf("Checking position %d\n", idx);
+			if (xferReqRingCpu[idx].in_use == 1)
+				return NIXL_IN_PROG;
+			if (xferReqRingCpu[idx].in_use == 2)
+				return NIXL_ERR_BACKEND;			
+		}
 	}
+
 	return NIXL_SUCCESS;
 }
 

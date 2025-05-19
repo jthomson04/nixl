@@ -24,7 +24,7 @@ compile_flags += '-D DOCA_ALLOW_EXPERIMENTAL_API'
 
 if 'DOCA' in static_plugins
     doca_backend_lib = static_library('DOCA',
-               'doca_backend.cpp', 'doca_backend.h', 'doca_plugin.cpp', 'kernel_write.cu', 'kernel_read.cu',
+               'doca_backend.cpp', 'doca_backend.h', 'doca_plugin.cpp', 'kernels.cu',
                dependencies: [nixl_infra, serdes_interface, cuda_dep, plugin_doca_deps],
                include_directories: [nixl_inc_dirs, utils_inc_dirs],
                install: true,
@@ -34,7 +34,7 @@ if 'DOCA' in static_plugins
                install_dir: plugin_install_dir)  # Custom prefix for plugin libraries
 else
     doca_backend_lib = shared_library('DOCA',
-               'doca_backend.cpp', 'doca_backend.h', 'doca_plugin.cpp', 'kernel_write.cu', 'kernel_read.cu',
+               'doca_backend.cpp', 'doca_backend.h', 'doca_plugin.cpp', 'kernels.cu',
                dependencies: [nixl_infra, serdes_interface, cuda_dep, plugin_doca_deps],
                include_directories: [nixl_inc_dirs, utils_inc_dirs],
                install: true,

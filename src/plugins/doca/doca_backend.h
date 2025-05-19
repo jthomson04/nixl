@@ -52,7 +52,8 @@
 #define RDMA_RECV_QUEUE_SIZE 2048
 #define RDMA_SEND_QUEUE_SIZE 2048
 #define DOCA_XFER_REQ_SIZE 512
-#define DOCA_XFER_REQ_MAX 16
+#define DOCA_XFER_REQ_MAX 32
+#define DOCA_XFER_REQ_MASK (DOCA_XFER_REQ_MAX - 1)
 #define DOCA_ENG_MAX_CONN 10
 #define DOCA_RDMA_CM_LOCAL_PORT 1235
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
@@ -143,6 +144,8 @@ class nixlDocaEngine : public nixlBackendEngine {
 
         std::thread pthr;
         volatile bool pthrStop, pthrActive;
+        uint32_t *last_flags;
+        cudaStream_t wait_stream;
 
         struct docaXferReqGpu *xferReqRingGpu;
         struct docaXferReqGpu *xferReqRingCpu;
@@ -263,6 +266,7 @@ extern "C" {
 // prepXferGpu postXferGpuGet();
 doca_error_t doca_kernel_write(cudaStream_t stream, struct doca_gpu_dev_rdma *rdma_gpu, struct docaXferReqGpu *xferReqRing, uint32_t pos);
 doca_error_t doca_kernel_read(cudaStream_t stream, struct doca_gpu_dev_rdma *rdma_gpu, struct docaXferReqGpu *xferReqRing, uint32_t pos);
+doca_error_t doca_kernel_wait(cudaStream_t stream, struct doca_gpu_dev_rdma *rdma_gpu, struct docaXferReqGpu *xferReqRing, uint32_t pos);
 
 #if __cplusplus
 }
