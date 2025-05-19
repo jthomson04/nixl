@@ -461,17 +461,22 @@ nixlDocaEngine::nixlDocaEngine (const nixlBackendInitParams* init_params)
 	memset(connection_established, 0, DOCA_ENG_MAX_CONN);
 
 	nixlDocaEngineCheckCudaError(cudaStreamCreateWithFlags(&wait_stream, cudaStreamNonBlocking), "Failed to create CUDA stream");
+	for (int i = 0; i < DOCA_POST_STREAM_NUM; i++)
+		nixlDocaEngineCheckCudaError(cudaStreamCreateWithFlags(&post_stream[i], cudaStreamNonBlocking), "Failed to create CUDA stream");
+	xferStream = 0;
 
 	// We may need a GPU warmup with relevant DOCA engine kernels
 	doca_kernel_write(0, rdma_gpu, nullptr, 0);
 	doca_kernel_read(0, rdma_gpu, nullptr, 0);
 
+	lastPostedReq = 0;
 	xferRingPos = 0;
 	firstXferRingPos = 0;
 	connection_num = 0;
 	last_connection_num = 0;
 	local_port = DOCA_RDMA_CM_LOCAL_PORT;
 	connection_error = false;
+	
 
 	result = doca_rdma_start_listen_to_port(rdma, local_port);
 	if (result != DOCA_SUCCESS) {
@@ -510,6 +515,8 @@ nixlDocaEngine::~nixlDocaEngine ()
 	doca_gpu_mem_free(gdevs[0].second, last_flags);
 
 	cudaStreamDestroy(wait_stream);
+	for (int i = 0; i < DOCA_POST_STREAM_NUM; i++)
+		cudaStreamDestroy(post_stream[i]);
 
 	for (uint32_t idx = 0; idx < connection_num; idx++) {
 		std::cout << "Disconnect " << idx << std::endl;
@@ -843,6 +850,7 @@ nixl_status_t nixlDocaEngine::prepXfer (const nixl_xfer_op_t &operation,
 	nixlDocaPublicMetadata *rmd;
 	uint32_t lcnt = (uint32_t)local.descCount();
 	uint32_t rcnt = (uint32_t)remote.descCount();
+	uint32_t stream_id;
 
 	// check device id from local dlist mr that should be all the same and same of the engine
 	for (uint32_t idx = 0; idx < lcnt; idx++) {
@@ -886,7 +894,16 @@ nixl_status_t nixlDocaEngine::prepXfer (const nixl_xfer_op_t &operation,
 		handle = treq;
 	} else {
 
-		treq->stream = (cudaStream_t)*((uintptr_t *)opt_args->customParam.data());
+		std::cout << " extra params " << opt_args->customParam;
+
+		if (opt_args->customParam.empty()) {
+			stream_id = (xferStream.fetch_add(1) & (DOCA_POST_STREAM_NUM - 1));
+			printf("xferCreate no stream, taking the next one %d\n", stream_id);
+			treq->stream = post_stream[stream_id];
+		} else {
+			treq->stream = (cudaStream_t)*((uintptr_t *)opt_args->customParam.data());
+			printf("xferCreate stream %lx\n", (uintptr_t)treq->stream);
+		}
 
 		#if 0
 			auto it = std::find_if(gdevs.begin(), gdevs.end(),
@@ -916,6 +933,8 @@ nixl_status_t nixlDocaEngine::prepXfer (const nixl_xfer_op_t &operation,
 				xferReqRingCpu[pos].rarr[idx] = (uintptr_t)rmd->mem.barr_gpu;
 				xferReqRingCpu[pos].size[idx] = lsize;
 				xferReqRingCpu[pos].num++;
+
+				printf("xfer %d buf %d\n", pos, idx);
 			}
 
 			xferReqRingCpu[pos].last_rsvd = last_flags;
@@ -953,6 +972,7 @@ nixl_status_t nixlDocaEngine::postXfer (const nixl_xfer_op_t &operation,
 	std::cout << "postXfer start " << treq->start_pos << " end " << treq->end_pos << "\n";
 
 	for (uint32_t idx = treq->start_pos; idx < treq->end_pos; idx++) {
+		xferReqRingCpu[idx].id = lastPostedReq.fetch_add(1);
 		switch (operation) {
 			case NIXL_READ:
 				std::cout << "READ KERNEL, pos " << idx << " num " << xferReqRingCpu[idx].num << "\n";
@@ -985,7 +1005,9 @@ nixl_status_t nixlDocaEngine::checkXfer(nixlBackendReqH* handle)
 			if (xferReqRingCpu[idx].in_use == 1)
 				return NIXL_IN_PROG;
 			if (xferReqRingCpu[idx].in_use == 2)
-				return NIXL_ERR_BACKEND;			
+				return NIXL_ERR_BACKEND;
+
+			xferReqRingCpu[idx].wait_launched = 0;
 		}
 	}
 

@@ -24,7 +24,11 @@
 #include "stream/metadata_stream.h"
 #include "serdes/serdes.h"
 
-#define NUM_TRANSFERS 32
+#define CUDA_THREADS 512
+#define NUM_STREAMS 8
+#define TRANSFER_NUM_BUFFER 8
+#define TRANSFER_NUM 2
+#define BUFFER_TOTAL (TRANSFER_NUM * TRANSFER_NUM_BUFFER)
 #define SIZE 1024
 #define INITIATOR_VALUE 0xbb
 #define VOLATILE(x) (*(volatile typeof(x) *)&(x))
@@ -65,14 +69,18 @@ static void checkCudaError(cudaError_t result, const char *message) {
 	}
 }
 
-__global__ void target_kernel(uintptr_t addr, size_t size)
+__global__ void target_kernel(uintptr_t addr, int transfer_idx)
 {
     uint8_t ok = 1;
+    uintptr_t transfer_addr = addr + (threadIdx.x * SIZE);
 
-    printf(">>>>>>> CUDA target waiting on addr %p size %d\n", (void*)addr, (uint32_t)size);
-    while(VOLATILE(((uint8_t*)addr)[0]) == 0);
-    for (int i = 0; i < (int)size; i++) {
-        if (((uint8_t*)addr)[i] != INITIATOR_VALUE) {
+    printf(">>>>>>> CUDA target waiting on transfer %d addr %lx size %d\n",
+            transfer_idx, transfer_addr, (uint32_t)SIZE);
+
+    while(VOLATILE(((uint8_t*)transfer_addr)[0]) == 0);
+
+    for (int i = 0; i < (int)SIZE; i++) {
+        if (((uint8_t*)transfer_addr)[i] != INITIATOR_VALUE) {
             printf(">>>>>>> CUDA target byte %x is wrong\n", i);
             ok = 1;
         }
@@ -83,7 +91,7 @@ __global__ void target_kernel(uintptr_t addr, size_t size)
         printf(">>>>>>> CUDA target, not all received bytes are ok!\n");
 }
 
-int launch_target_wait_kernel(cudaStream_t stream, uintptr_t addr, size_t size)
+int launch_target_wait_kernel(cudaStream_t stream, uintptr_t addr, int transfer_idx)
 {
     cudaError_t result = cudaSuccess;
 
@@ -94,7 +102,7 @@ int launch_target_wait_kernel(cudaStream_t stream, uintptr_t addr, size_t size)
         return -1;
     }
 
-    target_kernel<<<1, 1, 0, stream>>>(addr, size);
+    target_kernel<<<1, TRANSFER_NUM, 0, stream>>>(addr, transfer_idx);
     result = cudaGetLastError();
     if (result != cudaSuccess) {
         fprintf(stderr, "[%s:%d] cuda failed with %s", __FILE__, __LINE__, cudaGetErrorString(result));
@@ -104,22 +112,26 @@ int launch_target_wait_kernel(cudaStream_t stream, uintptr_t addr, size_t size)
     return 0;
 }
 
-__global__ void initiator_kernel(uintptr_t addr, size_t size)
+__global__ void initiator_kernel(uintptr_t addr, uint32_t transfer_idx)
 {
     unsigned long long start, end;
-
-    ((uint8_t*)addr)[threadIdx.x] = INITIATOR_VALUE;
-
-    __syncthreads();
+    // Each block updates a buffer in this transfer
+    uintptr_t block_address = (addr + (blockIdx.x * SIZE));
 
     /* Simulate a longer CUDA kernel to process initiator data */
     DEVICE_GET_TIME(start);
+
+    for (int i = threadIdx.x; i < SIZE; i+=blockDim.x)
+        ((uint8_t*)block_address)[i] = INITIATOR_VALUE;
+
+    __syncthreads();
+
     do {
         DEVICE_GET_TIME(end);
     } while (end - start < INITIATOR_THRESHOLD_NS);
 }
 
-int launch_initiator_send_kernel(cudaStream_t stream, uintptr_t addr, size_t size)
+int launch_initiator_send_kernel(cudaStream_t stream, uintptr_t addr, uint32_t transfer_idx)
 {
     cudaError_t result = cudaSuccess;
 
@@ -130,7 +142,8 @@ int launch_initiator_send_kernel(cudaStream_t stream, uintptr_t addr, size_t siz
         return -1;
     }
 
-    initiator_kernel<<<1, SIZE, 0, stream>>>(addr, size);
+    // Block = # buffers x transfer
+    initiator_kernel<<<TRANSFER_NUM_BUFFER, CUDA_THREADS, 0, stream>>>(addr, transfer_idx);
     result = cudaGetLastError();
     if (result != cudaSuccess) {
         fprintf(stderr, "[%s:%d] cuda failed with %s", __FILE__, __LINE__, cudaGetErrorString(result));
@@ -174,8 +187,9 @@ void sendToInitiator(const char *ip, int port, std::string data) {
 int main(int argc, char *argv[]) {
     int                     initiator_port;
     nixl_status_t           ret = NIXL_SUCCESS;
-    void                    *addr[NUM_TRANSFERS];
+    uint8_t                 *data_address;
     std::string             role;
+    std::string             processing;
     const char              *initiator_ip;
     nixl_blob_t             remote_desc;
     nixl_blob_t             metadata;
@@ -186,41 +200,52 @@ int main(int argc, char *argv[]) {
     /** Agent and backend creation parameters */
     nixlAgentConfig cfg(true);
     nixl_b_params_t params;
-    nixlBlobDesc    buf[NUM_TRANSFERS];
+    nixlBlobDesc    buf[TRANSFER_NUM_BUFFER];
     nixlBackendH    *doca;
-    cudaStream_t    stream;
+    cudaStream_t    stream[NUM_STREAMS];
     /** Serialization/Deserialization object to create a blob */
-    nixlSerDes *serdes        = new nixlSerDes();
-    nixlSerDes *remote_serdes = new nixlSerDes();
+    nixlSerDes *serdes[TRANSFER_NUM];
+    nixlSerDes *remote_serdes[TRANSFER_NUM];
     std::string target_name;
 
     /** Descriptors and Transfer Request */
-    nixl_reg_dlist_t  dram_for_doca(DRAM_SEG);
-    nixlXferReqH      *treq;
+    nixl_reg_dlist_t  *dram_for_doca[TRANSFER_NUM];
+    nixlXferReqH      *treq[TRANSFER_NUM];
 
     /** Argument Parsing */
-    if (argc < 4) {
+    if (argc < 5) {
         std::cout <<"Enter the required arguments\n" << std::endl;
-        std::cout <<"<Role> " <<"Peer IP> <Peer Port>"
+        std::cout <<"<Role> <Peer IP> <Peer Port> <CPU or GPU processing>"
                   << std::endl;
         exit(-1);
     }
 
     role = std::string(argv[1]);
-    initiator_ip   = argv[2];
-    initiator_port = std::stoi(argv[3]);
     std::transform(role.begin(), role.end(), role.begin(), ::tolower);
-
     if (!role.compare("initiator") && !role.compare("target")) {
             std::cerr << "Invalid role. Use 'initiator' or 'target'."
                       << "Currently "<< role <<std::endl;
             return 1;
     }
+
+    initiator_ip   = argv[2];
+    initiator_port = std::stoi(argv[3]);
+    processing = std::string(argv[4]);
+    std::transform(processing.begin(), processing.end(), processing.begin(), ::tolower);
+    if (!processing.compare("cpu") && !processing.compare("gpu")) {
+            std::cerr << "Invalid type of processing. Use 'cpu' or 'gpu'."
+                      << "Currently "<< processing <<std::endl;
+            return 1;
+    }
+
     /*** End - Argument Parsing */
 
     checkCudaError(cudaSetDevice(0), "Failed to set device");
 	cudaFree(0);
-	checkCudaError(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking), "Failed to create CUDA stream");
+
+    if (processing.compare("gpu") == 0)
+        for (int i = 0; i < NUM_STREAMS; i++)
+            checkCudaError(cudaStreamCreateWithFlags(&stream[i], cudaStreamNonBlocking), "Failed to create CUDA stream");
 
     /** Common to both Initiator and Target */
     std::cout << "Starting Agent for "<< role << "\n";
@@ -234,114 +259,173 @@ int main(int argc, char *argv[]) {
     nixl_opt_args_t extra_params;
     extra_params.backends.push_back(doca);
 
-    for (int i = 0; i < NUM_TRANSFERS; i++) {
-        checkCudaError(cudaMalloc(&addr[i], SIZE), "Failed to allocate CUDA buffer 0");
-        checkCudaError(cudaMemset(addr[i], 0, SIZE), "Failed to memset CUDA buffer 0");
-        if (role != "target") {
-            std::cout << "Allocating for initiator : "
-                      << addr[i] << ", "
-                      << std::endl;
-        } else {
-            std::cout << "Allocating for target : "
-                      << addr[i] << ", "
-                      << std::endl;
-        }
-        buf[i].addr  = (uintptr_t)(addr[i]);
-        buf[i].len   = SIZE;
-        buf[i].devId = 0;
-        dram_for_doca.addDesc(buf[i]);
+    checkCudaError(cudaMalloc(&data_address, SIZE * BUFFER_TOTAL), "Failed to allocate CUDA buffer 0");
+    checkCudaError(cudaMemset((void*)data_address, 0, SIZE * BUFFER_TOTAL), "Failed to memset CUDA buffer 0");
+
+    if (role != "target") {
+        std::cout << "Allocating for initiator : "
+                  << BUFFER_TOTAL << " buffers "
+                  << SIZE << " Bytes each "
+                  << (void*)data_address << " address "
+                  << std::endl;
+    } else {
+        std::cout << "Allocating for target : "
+                  << BUFFER_TOTAL << " buffers "
+                  << SIZE << " Bytes each "
+                  << (void*)data_address << " address "
+                  << std::endl;
     }
 
-    /** Register memory in both initiator and target */
-    agent.registerMem(dram_for_doca, &extra_params);
+    for (int transfer_idx = 0; transfer_idx < TRANSFER_NUM; transfer_idx++) {
+        dram_for_doca[transfer_idx] = new nixl_reg_dlist_t(DRAM_SEG); //, false, TRANSFER_NUM_BUFFER);
+        for (int transfer_buffer_idx = 0; transfer_buffer_idx < TRANSFER_NUM_BUFFER; transfer_buffer_idx++) {
+            buf[transfer_buffer_idx].addr  = (uintptr_t)(data_address + (transfer_idx * TRANSFER_NUM_BUFFER * SIZE) + (transfer_buffer_idx * SIZE));
+            buf[transfer_buffer_idx].len   = SIZE;
+            buf[transfer_buffer_idx].devId = 0;
+            printf("Register transf %d buf %d addr %lx\n",  transfer_idx, transfer_buffer_idx, buf[transfer_buffer_idx].addr);
+            dram_for_doca[transfer_idx]->addDesc(buf[transfer_buffer_idx]);
+        }
+
+        /** Register memory in both initiator and target */
+        agent.registerMem(dram_for_doca[transfer_idx][0], &extra_params);
+    }
+
     agent.getLocalMD(metadata);
 
     std::cout << " Start Control Path metadata exchanges \n";
     if (role == "target") {
+        nixlMDStreamClient client(initiator_ip, initiator_port);
+        client.connectListenerSync();
+
         std::cout << " Desc List from Target to Initiator\n";
-        dram_for_doca.print();
+        for (int transfer_idx = 0; transfer_idx < TRANSFER_NUM; transfer_idx++) {
+            dram_for_doca[transfer_idx]->print();
+            /** Sending both metadata strings together */
+            serdes[transfer_idx] = new nixlSerDes();
+            assert(serdes[transfer_idx]->addStr("AgentMD", metadata) == NIXL_SUCCESS);
+            assert(dram_for_doca[transfer_idx]->trim().serialize(serdes[transfer_idx]) == NIXL_SUCCESS);
 
-        /** Sending both metadata strings together */
-        assert(serdes->addStr("AgentMD", metadata) == NIXL_SUCCESS);
-        assert(dram_for_doca.trim().serialize(serdes) == NIXL_SUCCESS);
-
-        std::cout << " Serialize Metadata to string and Send to Initiator\n";
-        std::cout << " \t -- To be handled by runtime - currently sent via a TCP Stream\n";
-        sendToInitiator(initiator_ip, initiator_port, serdes->exportStr());
-        std::cout << " End Control Path metadata exchanges \n";
+            std::cout << " Serialize Metadata to string and Send to Initiator\n";
+            std::cout << " \t -- To be handled by runtime - currently sent via a TCP Stream\n";
+            // sendToInitiator(initiator_ip, initiator_port, serdes[transfer_idx]->exportStr());
+            client.sendData(serdes[transfer_idx]->exportStr());
+            std::cout << " End Control Path metadata exchanges \n";
+        }
 
         std::cout << " Start Data Path Exchanges \n";
         std::cout << " Waiting to receive Data from Initiator\n";
 
-        for (int i = 0; i < NUM_TRANSFERS-1; i++)
-            launch_target_wait_kernel(stream, (uintptr_t)addr[i], SIZE);
-        cudaStreamSynchronize(stream);
+        /* 1 target CUDA kernel per transfer. Each thread will check a single buffer in the transfer */
+        for (int transfer_idx = 0; transfer_idx < TRANSFER_NUM-1; transfer_idx++)
+            launch_target_wait_kernel(stream[transfer_idx], (uintptr_t)(data_address + (transfer_idx * TRANSFER_NUM_BUFFER * SIZE)), transfer_idx);
+        for (int transfer_idx = 0; transfer_idx < TRANSFER_NUM-1; transfer_idx++)
+            cudaStreamSynchronize(stream[transfer_idx]);
 
         std::cout << " DOCA Transfer completed!\n";
     } else {
         std::cout << " Receive metadata from Target \n";
         std::cout << " \t -- To be handled by runtime - currently received via a TCP Stream\n";
-        std::string rrstr = recvFromTarget(initiator_port);
 
-        remote_serdes->importStr(rrstr);
-        remote_metadata = remote_serdes->getStr("AgentMD");
-        assert (remote_metadata != "");
-        agent.loadRemoteMD(remote_metadata, target_name);
+        nixlMDStreamListener listener(initiator_port);
+        listener.setupListenerSync();
+        listener.acceptClient();
 
-        std::cout << " Verify Deserialized Target's Desc List at Initiator\n";
-        nixl_xfer_dlist_t dram_target_doca(remote_serdes);
-        nixl_xfer_dlist_t dram_initiator_doca = dram_for_doca.trim();
-        dram_target_doca.print();
-        std::cout << " Got metadata from " << target_name << " \n";
+        for (int transfer_idx = 0; transfer_idx < TRANSFER_NUM; transfer_idx++) {
+            remote_serdes[transfer_idx] = new nixlSerDes();
+            std::string rrstr = listener.recvFromClient(); //recvFromTarget(initiator_port);
+            remote_serdes[transfer_idx]->importStr(rrstr);
+            remote_metadata = remote_serdes[transfer_idx]->getStr("AgentMD");
+            assert (remote_metadata != "");
+            agent.loadRemoteMD(remote_metadata, target_name);
 
-        std::cout << " Create transfer request with DOCA backend\n ";
+            std::cout << " Verify Deserialized Target's Desc List at Initiator\n";
+            nixl_xfer_dlist_t dram_target_doca(remote_serdes[transfer_idx]);
+            nixl_xfer_dlist_t dram_initiator_doca = dram_for_doca[transfer_idx]->trim();
+            dram_target_doca.print();
 
-        extra_params.customParam.resize(sizeof(uintptr_t));
-        *((uintptr_t*) extra_params.customParam.data()) = (uintptr_t)stream;
+            std::cout << " Got metadata from " << target_name << " \n";
+            std::cout << " Create transfer request with DOCA backend\n ";
 
-        PUSH_RANGE("createXferReq", 1)
-        ret = agent.createXferReq(NIXL_WRITE, dram_initiator_doca, dram_target_doca,
-                                  "target", treq, &extra_params);
-        POP_RANGE
-        if (ret != NIXL_SUCCESS) {
-            std::cerr << "Error creating transfer request\n";
-            exit(-1);
+            PUSH_RANGE("createXferReq", 1)
+            if (processing.compare("gpu") == 0) {
+                extra_params.customParam.resize(sizeof(uintptr_t));
+                *((uintptr_t*) extra_params.customParam.data()) = (uintptr_t)stream[transfer_idx];
+            }
+
+            ret = agent.createXferReq(NIXL_WRITE, dram_initiator_doca, dram_target_doca,
+                                "target", treq[transfer_idx], &extra_params);
+            if (ret != NIXL_SUCCESS) {
+                std::cerr << "Error creating transfer request\n";
+                exit(-1);
+            }
+            POP_RANGE
         }
 
         std::cout << "Launch initiator send kernel on stream\n";
-        /* Synthetic simulation of GPU processing data before sending */
-        PUSH_RANGE("InitKernels", 2)
-        for (int i = 0; i < NUM_TRANSFERS-1; i++)
-            launch_initiator_send_kernel(stream, buf[i].addr, buf[i].len);
-        POP_RANGE
 
-        std::cout << " Post the request with DOCA backend\n ";
-        PUSH_RANGE("postXferReq", 3)
-        status = agent.postXferReq(treq);
-        POP_RANGE
+        /* Synthetic simulation of GPU processing data before sending */
+        if (processing.compare("gpu") == 0) {
+            for (int transfer_idx = 0; transfer_idx < TRANSFER_NUM; transfer_idx++) {
+                std::cout << " Prepare data, GPU mode, transfer " << transfer_idx << " \n ";
+                PUSH_RANGE("InitData", 2)
+                launch_initiator_send_kernel(stream[transfer_idx], (uintptr_t)(data_address + (transfer_idx * TRANSFER_NUM_BUFFER * SIZE)), transfer_idx);
+                POP_RANGE
+
+                std::cout << " Post the request with DOCA backend transfer " << transfer_idx << " \n ";
+                PUSH_RANGE("postXferReq", 3)
+                status = agent.postXferReq(treq[transfer_idx]);
+                assert(status >= NIXL_SUCCESS);
+                POP_RANGE
+            } 
+        } else {
+            /* Synthetic simulation of CPU processing data before sending */
+            for (int transfer_idx = 0; transfer_idx < TRANSFER_NUM; transfer_idx++) {
+                std::cout << " Prepare data, CPU mode, transfer " << transfer_idx << " \n ";
+                PUSH_RANGE("InitData", 2)
+                cudaMemset((void*)(data_address + (transfer_idx * TRANSFER_NUM_BUFFER * SIZE)), INITIATOR_VALUE, TRANSFER_NUM_BUFFER * SIZE);
+                POP_RANGE
+
+                std::cout << " Post the request with DOCA backend transfer " << transfer_idx << " \n ";
+                PUSH_RANGE("postXferReq", 3)
+                status = agent.postXferReq(treq[transfer_idx]);
+                assert(status >= NIXL_SUCCESS);
+                POP_RANGE
+            }
+        }
+
         std::cout << " Initiator posted Data Path transfer\n";
         std::cout << " Waiting for completion\n";
 
         PUSH_RANGE("getXferStatus", 4)
-        while (status != NIXL_SUCCESS) {
-            status = agent.getXferStatus(treq);
-            assert(status >= 0);
+        for (int transfer_idx = 0; transfer_idx < TRANSFER_NUM; transfer_idx++) {
+            while (status != NIXL_SUCCESS) {
+                status = agent.getXferStatus(treq[transfer_idx]);
+                assert(status >= NIXL_SUCCESS);
+            }
         }
         POP_RANGE
-        std::cout << " Completed Sending " << NUM_TRANSFERS << " transfers using DOCA backend\n";
-        agent.releaseXferReq(treq);
+        std::cout << " Completed Sending " << TRANSFER_NUM << " transfers using DOCA backend\n";
+        for (int transfer_idx = 0; transfer_idx < TRANSFER_NUM; transfer_idx++)
+            agent.releaseXferReq(treq[transfer_idx]);
     }
 
-    cudaStreamSynchronize(stream);
-    cudaStreamDestroy(stream);
+    for (int transfer_idx = 0; transfer_idx < TRANSFER_NUM; transfer_idx++) {
+        cudaStreamSynchronize(stream[transfer_idx]);
+        cudaStreamDestroy(stream[transfer_idx]);
+    }
 
     std::cout <<"Cleanup.. \n";
-    agent.deregisterMem(dram_for_doca, &extra_params);
-    for (int i = 0; i < NUM_TRANSFERS; i++) {
-        cudaFree(addr[i]);
+    
+    for (int transfer_idx = 0; transfer_idx < TRANSFER_NUM; transfer_idx++)
+        agent.deregisterMem(*dram_for_doca[transfer_idx], &extra_params);
+    cudaFree(data_address);
+
+    for (int transfer_idx = 0; transfer_idx < TRANSFER_NUM; transfer_idx++) {
+        if (role == "target")
+            delete serdes[transfer_idx];
+        else
+            delete remote_serdes[transfer_idx];
     }
-    delete serdes;
-    delete remote_serdes;
 
     return 0;
 }

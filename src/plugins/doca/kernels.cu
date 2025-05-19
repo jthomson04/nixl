@@ -31,7 +31,7 @@ __device__ uint32_t reserve_position(struct docaXferReqGpu *xferReqRing, uint32_
 
 __device__ void wait_post(struct doca_gpu_dev_rdma *rdma_gpu, struct docaXferReqGpu *xferReqRing, uint32_t pos) {
 	cuda::atomic_ref<uint32_t, cuda::thread_scope_device> index(*xferReqRing[pos].last_posted);
-	while (index.load(cuda::std::memory_order_relaxed) != pos)
+	while (index.load(cuda::std::memory_order_relaxed) != xferReqRing[pos].id)
 		continue;
 	// prevents the compiler from reordering
 	asm volatile("fence.acquire.gpu;");

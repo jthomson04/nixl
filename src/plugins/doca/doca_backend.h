@@ -51,6 +51,7 @@
 #define DOCA_DEVINFO_IBDEV_NAME_SIZE 64
 #define RDMA_RECV_QUEUE_SIZE 2048
 #define RDMA_SEND_QUEUE_SIZE 2048
+#define DOCA_POST_STREAM_NUM 8
 #define DOCA_XFER_REQ_SIZE 512
 #define DOCA_XFER_REQ_MAX 32
 #define DOCA_XFER_REQ_MASK (DOCA_XFER_REQ_MAX - 1)
@@ -145,7 +146,11 @@ class nixlDocaEngine : public nixlBackendEngine {
         std::thread pthr;
         volatile bool pthrStop, pthrActive;
         uint32_t *last_flags;
+        cudaStream_t post_stream[DOCA_POST_STREAM_NUM];
         cudaStream_t wait_stream;
+        std::atomic<uint32_t> xferStream;
+
+        std::atomic<uint32_t> lastPostedReq;
 
         struct docaXferReqGpu *xferReqRingGpu;
         struct docaXferReqGpu *xferReqRingCpu;

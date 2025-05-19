@@ -24,6 +24,7 @@
 #define DOCA_XFER_REQ_SIZE 512
 
 struct docaXferReqGpu {
+    uint32_t id;
     uintptr_t larr[DOCA_XFER_REQ_SIZE];
     uintptr_t rarr[DOCA_XFER_REQ_SIZE];
     size_t size[DOCA_XFER_REQ_SIZE];
