@@ -14,8 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef TEST_GTEST_MOCKS_MOCK_DRAM_ENGINE_H
-#define TEST_GTEST_MOCKS_MOCK_DRAM_ENGINE_H
+#ifndef TEST_GTEST_MOCKS_MOCK_BACKEND_ENGINE_H
+#define TEST_GTEST_MOCKS_MOCK_BACKEND_ENGINE_H
 
 #include "backend/backend_engine.h"
 #include "backend/backend_plugin.h"

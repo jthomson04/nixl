@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "mock_dram_engine.h"
+#include "mock_backend_engine.h"
 #include "gmock_engine.h"
 
 namespace mocks {
