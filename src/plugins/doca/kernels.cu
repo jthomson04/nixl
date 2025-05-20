@@ -120,22 +120,32 @@ __global__ void kernel_write(struct doca_gpu_dev_rdma *rdma_gpu, struct docaXfer
 	}
 }
 
-__global__ void kernel_wait(struct doca_gpu_dev_rdma *rdma_gpu, struct docaXferReqGpu *xferReqRing, uint32_t pos)
+__global__ void kernel_wait(struct doca_gpu_dev_rdma *rdma_gpu, uint8_t *completion_list, uint32_t *exit_flag)
 {
 	doca_error_t result;
 	uint32_t num_ops=0;
+	uint32_t index = 0;
 
 	//Warmup
-	if (xferReqRing == nullptr)
+	if (completion_list == nullptr)
 		return;
 
-	result = doca_gpu_dev_rdma_wait_all(rdma_gpu, &num_ops);
-	if (result != DOCA_SUCCESS) {
-		xferReqRing[pos].in_use = 2;
-		printf("Error %d doca_gpu_dev_rdma_wait_all\n", result);
-	}
+	while (DOCA_GPUNETIO_VOLATILE(*exit_flag) == 0) {
+		result = doca_gpu_dev_rdma_wait_all(rdma_gpu, &num_ops);
+		if (result != DOCA_SUCCESS) {
+			printf("Error %d doca_gpu_dev_rdma_wait_all\n", result);
+			DOCA_GPUNETIO_VOLATILE(*exit_flag) = 1;
+		}
 
-	xferReqRing[pos].in_use = 0;
+		while (num_ops > 0) {
+#if ENABLE_DEBUG == 1
+			printf("poll cq %d index %d\n", num_ops, index);
+#endif
+			completion_list[index] = 1;
+			num_ops--;
+			index = (index+1) & (DOCA_MAX_COMPLETION_INFLIGHT - 1);
+		}
+	}
 }
 
 extern "C" {
@@ -192,7 +202,7 @@ doca_error_t doca_kernel_read(cudaStream_t stream, struct doca_gpu_dev_rdma *rdm
     return DOCA_SUCCESS;
 }
 
-doca_error_t doca_kernel_wait(cudaStream_t stream, struct doca_gpu_dev_rdma *rdma_gpu, struct docaXferReqGpu *xferReqRing, uint32_t pos)
+doca_error_t doca_kernel_wait(cudaStream_t stream, struct doca_gpu_dev_rdma *rdma_gpu, uint8_t *completion_list, uint32_t *exit_flag)
 {
     cudaError_t result = cudaSuccess;
 
@@ -208,7 +218,7 @@ doca_error_t doca_kernel_wait(cudaStream_t stream, struct doca_gpu_dev_rdma *rdm
         return DOCA_ERROR_BAD_STATE;
     }
 
-    kernel_wait<<<1, 1, 0, stream>>>(rdma_gpu, xferReqRing, pos);
+    kernel_wait<<<1, 1, 0, stream>>>(rdma_gpu, completion_list, exit_flag);
     result = cudaGetLastError();
     if (result != cudaSuccess) {
         fprintf(stderr, "[%s:%d] cuda failed with %s", __FILE__, __LINE__, cudaGetErrorString(result));

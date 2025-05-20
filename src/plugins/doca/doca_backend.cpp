@@ -465,6 +465,30 @@ nixlDocaEngine::nixlDocaEngine (const nixlBackendInitParams* init_params)
 		nixlDocaEngineCheckCudaError(cudaStreamCreateWithFlags(&post_stream[i], cudaStreamNonBlocking), "Failed to create CUDA stream");
 	xferStream = 0;
 
+	result = doca_gpu_mem_alloc(gdevs[0].second, sizeof(uint8_t) * DOCA_MAX_COMPLETION_INFLIGHT,
+		4096,
+		DOCA_GPU_MEM_TYPE_CPU_GPU,
+		(void **)&completion_list_gpu,
+		(void **)&completion_list_cpu);
+	if (result != DOCA_SUCCESS || completion_list_gpu == NULL || completion_list_cpu == NULL) {
+		DOCA_LOG_ERR("Function doca_gpu_mem_alloc returned %s", doca_error_get_descr(result));
+	}
+
+	result = doca_gpu_mem_alloc(gdevs[0].second, sizeof(uint32_t),
+		4096,
+		DOCA_GPU_MEM_TYPE_GPU_CPU,
+		(void **)&wait_exit_gpu,
+		(void **)&wait_exit_cpu);
+	if (result != DOCA_SUCCESS || wait_exit_gpu == NULL || wait_exit_cpu == NULL) {
+		DOCA_LOG_ERR("Function doca_gpu_mem_alloc returned %s", doca_error_get_descr(result));
+	}
+	*wait_exit_cpu = 0;
+
+	//Warmup
+	doca_kernel_wait(wait_stream, rdma_gpu, nullptr, nullptr);
+	cudaStreamSynchronize(wait_stream);
+	doca_kernel_wait(wait_stream, rdma_gpu, completion_list_gpu, wait_exit_gpu);
+
 	// We may need a GPU warmup with relevant DOCA engine kernels
 	doca_kernel_write(0, rdma_gpu, nullptr, 0);
 	doca_kernel_read(0, rdma_gpu, nullptr, 0);
@@ -511,12 +535,19 @@ nixlDocaEngine::~nixlDocaEngine ()
 
 	progressThreadStop();
 
+	((volatile uint8_t *)wait_exit_cpu)[0] = 1;
+	cudaStreamSynchronize(wait_stream);
+	cudaStreamDestroy(wait_stream);
+	doca_gpu_mem_free(gdevs[0].second, wait_exit_gpu);
 	doca_gpu_mem_free(gdevs[0].second, xferReqRingGpu);
 	doca_gpu_mem_free(gdevs[0].second, last_flags);
 
-	cudaStreamDestroy(wait_stream);
-	for (int i = 0; i < DOCA_POST_STREAM_NUM; i++)
+	for (int i = 0; i < DOCA_POST_STREAM_NUM; i++) {
+		cudaStreamSynchronize(post_stream[i]);
 		cudaStreamDestroy(post_stream[i]);
+	}
+
+	doca_gpu_mem_free(gdevs[0].second, completion_list_gpu);
 
 	for (uint32_t idx = 0; idx < connection_num; idx++) {
 		std::cout << "Disconnect " << idx << std::endl;
@@ -954,6 +985,8 @@ nixl_status_t nixlDocaEngine::prepXfer (const nixl_xfer_op_t &operation,
 		// Need also a stream warmup?
 		// doca_kernel_write(treq->stream, rdma_gpu, nullptr, 0);
 
+		printf("exit from postXfer\n");
+
 		handle = treq;
 	}
 
@@ -969,17 +1002,16 @@ nixl_status_t nixlDocaEngine::postXfer (const nixl_xfer_op_t &operation,
 {
 	nixlDocaBckndReq *treq = (nixlDocaBckndReq *) handle;
 
-	std::cout << "postXfer start " << treq->start_pos << " end " << treq->end_pos << "\n";
-
+	// std::cout << "postXfer start " << treq->start_pos << " end " << treq->end_pos << "\n";
 	for (uint32_t idx = treq->start_pos; idx < treq->end_pos; idx++) {
 		xferReqRingCpu[idx].id = lastPostedReq.fetch_add(1);
 		switch (operation) {
 			case NIXL_READ:
-				std::cout << "READ KERNEL, pos " << idx << " num " << xferReqRingCpu[idx].num << "\n";
+				// std::cout << "READ KERNEL, pos " << idx << " num " << xferReqRingCpu[idx].num << "\n";
 				doca_kernel_read(treq->stream, rdma_gpu, xferReqRingGpu, idx);
 				break;
 			case NIXL_WRITE:
-				std::cout << "WRITE KERNEL, pos " << idx << " num " << xferReqRingCpu[idx].num << "\n";
+				// std::cout << "WRITE KERNEL, pos " << idx << " num " << xferReqRingCpu[idx].num << "\n";
 				doca_kernel_write(treq->stream, rdma_gpu, xferReqRingGpu, idx);
 				break;
 			default:
@@ -993,22 +1025,16 @@ nixl_status_t nixlDocaEngine::postXfer (const nixl_xfer_op_t &operation,
 nixl_status_t nixlDocaEngine::checkXfer(nixlBackendReqH* handle)
 {
 	nixlDocaBckndReq *treq = (nixlDocaBckndReq *) handle;
+	uint32_t completion_index;
 
 	for (uint32_t idx = treq->start_pos; idx < treq->end_pos; idx++) {
-		if (xferReqRingCpu[idx].wait_launched == 0) {
-			printf("Launch wait kernel position %d\n", idx);
-			doca_kernel_wait(wait_stream, rdma_gpu, xferReqRingGpu, idx);
-			xferReqRingCpu[idx].wait_launched = 1;
-			return NIXL_IN_PROG;
-		} else {
-			printf("Checking position %d\n", idx);
-			if (xferReqRingCpu[idx].in_use == 1)
-				return NIXL_IN_PROG;
-			if (xferReqRingCpu[idx].in_use == 2)
-				return NIXL_ERR_BACKEND;
+		completion_index = xferReqRingCpu[idx].id & (DOCA_MAX_COMPLETION_INFLIGHT - 1);
 
-			xferReqRingCpu[idx].wait_launched = 0;
-		}
+		if (((volatile uint8_t *)completion_list_cpu)[completion_index] == 1) {
+			xferReqRingCpu[idx].in_use = 0;
+			return NIXL_SUCCESS;
+		} else
+			return NIXL_IN_PROG;
 	}
 
 	return NIXL_SUCCESS;

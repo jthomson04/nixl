@@ -48,6 +48,7 @@
 #include "common/nixl_time.h"
 #include "common/list_elem.h"
 
+#define DOCA_MAX_COMPLETION_INFLIGHT 64
 #define DOCA_DEVINFO_IBDEV_NAME_SIZE 64
 #define RDMA_RECV_QUEUE_SIZE 2048
 #define RDMA_SEND_QUEUE_SIZE 2048
@@ -156,6 +157,11 @@ class nixlDocaEngine : public nixlBackendEngine {
         struct docaXferReqGpu *xferReqRingCpu;
         std::atomic<uint32_t> xferRingPos;
         uint32_t firstXferRingPos;
+
+        uint8_t *completion_list_gpu;
+        uint8_t *completion_list_cpu;
+        uint32_t *wait_exit_gpu;
+        uint32_t *wait_exit_cpu;
         // Map of agent name to saved nixlDocaConnection info
         std::unordered_map<std::string, nixlDocaConnection,
                            std::hash<std::string>, strEqual> remoteConnMap;
@@ -271,7 +277,7 @@ extern "C" {
 // prepXferGpu postXferGpuGet();
 doca_error_t doca_kernel_write(cudaStream_t stream, struct doca_gpu_dev_rdma *rdma_gpu, struct docaXferReqGpu *xferReqRing, uint32_t pos);
 doca_error_t doca_kernel_read(cudaStream_t stream, struct doca_gpu_dev_rdma *rdma_gpu, struct docaXferReqGpu *xferReqRing, uint32_t pos);
-doca_error_t doca_kernel_wait(cudaStream_t stream, struct doca_gpu_dev_rdma *rdma_gpu, struct docaXferReqGpu *xferReqRing, uint32_t pos);
+doca_error_t doca_kernel_wait(cudaStream_t stream, struct doca_gpu_dev_rdma *rdma_gpu, uint8_t *completion_list, uint32_t *exit_flag);
 
 #if __cplusplus
 }

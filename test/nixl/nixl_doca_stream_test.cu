@@ -409,16 +409,19 @@ int main(int argc, char *argv[]) {
             agent.releaseXferReq(treq[transfer_idx]);
     }
 
-    for (int transfer_idx = 0; transfer_idx < TRANSFER_NUM; transfer_idx++) {
-        cudaStreamSynchronize(stream[transfer_idx]);
-        cudaStreamDestroy(stream[transfer_idx]);
+
+    if (processing.compare("gpu") == 0) {
+        for (int transfer_idx = 0; transfer_idx < TRANSFER_NUM; transfer_idx++) {
+            cudaStreamSynchronize(stream[transfer_idx]);
+            cudaStreamDestroy(stream[transfer_idx]);
+        }
     }
 
     std::cout <<"Cleanup.. \n";
     
     for (int transfer_idx = 0; transfer_idx < TRANSFER_NUM; transfer_idx++)
-        agent.deregisterMem(*dram_for_doca[transfer_idx], &extra_params);
-    cudaFree(data_address);
+        agent.deregisterMem(dram_for_doca[transfer_idx][0], &extra_params);
+    // cudaFree(data_address);
 
     for (int transfer_idx = 0; transfer_idx < TRANSFER_NUM; transfer_idx++) {
         if (role == "target")
@@ -426,6 +429,8 @@ int main(int argc, char *argv[]) {
         else
             delete remote_serdes[transfer_idx];
     }
+
+    std::cout <<"Exit.. \n";
 
     return 0;
 }

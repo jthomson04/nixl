@@ -29,7 +29,6 @@ struct docaXferReqGpu {
     uintptr_t rarr[DOCA_XFER_REQ_SIZE];
     size_t size[DOCA_XFER_REQ_SIZE];
     uint16_t num;
-    uint8_t wait_launched;
     uint8_t in_use;
     uint32_t *last_rsvd;
     uint32_t *last_posted;
