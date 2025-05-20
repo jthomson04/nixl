@@ -634,7 +634,7 @@ static int execTransfer(nixlAgent *agent,
                         const nixl_xfer_op_t op,
                         const int num_iter,
                         const int num_threads,
-                        std::chrono::duration<double> &estimated_duration)
+                        std::chrono::microseconds &estimated_duration)
 {
     int ret = 0;
 
@@ -722,7 +722,7 @@ int xferBenchNixlWorker::transfer(size_t block_size,
         num_iter /= LARGE_BLOCK_SIZE_ITER_FACTOR;
     }
 
-    std::chrono::duration<double> estimated_duration;
+    std::chrono::microseconds estimated_duration;
     ret = execTransfer(agent, local_iovs, remote_iovs, xfer_op, skip, xferBenchConfig::num_threads, estimated_duration);
     if (ret < 0) {
         return ret;
@@ -740,7 +740,7 @@ int xferBenchNixlWorker::transfer(size_t block_size,
                        (t_end.tv_usec - t_start.tv_usec)); // In us
 
     metrics.total_duration = total_duration;
-    metrics.estimated_duration = estimated_duration.count() * 1e6;
+    metrics.estimated_duration = estimated_duration.count();
     return ret;
 }
 
