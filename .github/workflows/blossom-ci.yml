@@ -19,9 +19,23 @@ jobs:
       args: ${{ env.args }}
 
     # This job only runs for pull request comments
-    if: |
-         github.event.comment.body == '/build' && (github.actor == 'dpressle' || github.actor == 'Alexey-Rivkin' || github.actor == 'yosefe')
+    if: github.event.comment.body == '/build'
     steps:
+      - name: Check user for team affiliation
+        id: teamAffiliation
+        uses: tspascoal/get-user-teams-membership@v2
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ github.actor }}
+          team: nixl-maintainer
+          organization: ai-dynamo
+
+      - name: Stop workflow if user is not a member
+        if: steps.teamAffiliation.outputs.isTeamMember == 'false'
+        run: |
+          echo "User ${{ github.actor }} have no rights to trigger this job."
+          exit 1
+
       - name: Check if comment is issued by authorized person
         run: blossom-ci
         env:
