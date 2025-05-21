@@ -59,6 +59,9 @@ fn main() {
         //    .flag("-D_GLIBCXX_USE_CXX11_ABI=0")
         .flag("-Wno-unused-parameter")
         .flag("-Wno-unused-variable")
+        .flag("-pthread")
+        .flag("-Wl,-rpath")
+        .flag("-Wl,--no-as-needed")
         .compile("wrapper");
 
     // Link against C++ standard library first
