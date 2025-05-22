@@ -13,24 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-file_utils_sources = [
-    'file_utils.cpp'
-]
+file_utils_inc = include_directories('.')
 
-file_utils_headers = [
-    'file_utils.h'
-]
-
-file_utils_lib = static_library(
-    'nixl_file_utils',
-    file_utils_sources,
-    include_directories: [nixl_inc_dirs, utils_inc_dirs],
+# Define a shared library for file utilities
+file_utils_lib = shared_library('nixl_file_utils',
+    'file_utils.cpp',
+    include_directories: [nixl_inc_dirs, utils_inc_dirs, file_utils_inc],
     dependencies: [nixl_common_dep],
     install: true
 )
 
+# Make the library and includes available to other parts of the build
 file_utils_dep = declare_dependency(
+    include_directories: [nixl_inc_dirs, utils_inc_dirs, file_utils_inc],
     link_with: file_utils_lib,
-    include_directories: [nixl_inc_dirs, utils_inc_dirs, include_directories('.')],
     dependencies: [nixl_common_dep]
 )
