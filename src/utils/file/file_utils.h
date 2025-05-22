@@ -23,15 +23,21 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <optional>
+#include <tuple>
 
 /**
  * @brief File access modes
  */
 enum class nixlFileMode {
-    CREATE,     // Create new file (O_CREAT | O_WRONLY | O_TRUNC)
-    READ_ONLY,  // Read only (O_RDONLY)
-    WRITE_ONLY, // Write only (O_WRONLY)
-    READ_WRITE  // Read and write (O_RDWR)
+    READ_ONLY,          // Open existing file for reading
+    WRITE_ONLY,         // Open existing file for writing
+    READ_WRITE,         // Open existing file for reading and writing
+    CREATE,             // Create new file or truncate existing
+    READ_DIRECT,        // Open existing file for reading with O_DIRECT
+    WRITE_DIRECT,       // Open existing file for writing with O_DIRECT
+    READ_WRITE_DIRECT,  // Open existing file for reading and writing with O_DIRECT
+    CREATE_DIRECT       // Create new file or truncate existing with O_DIRECT
 };
 
 /**
@@ -54,9 +60,27 @@ public:
      * @param path File path
      * @param mode File access mode
      * @param[out] fd File descriptor if successful
+     * @param use_direct Whether to use O_DIRECT flag
      * @return NIXL_SUCCESS on success, error code otherwise
      */
-    static nixl_status_t openFile(const std::string& path, nixlFileMode mode, int& fd);
+    static nixl_status_t openFile(const std::string& path, nixlFileMode mode, int& fd, bool use_direct = false);
+
+    /**
+     * @brief Opens a file using a prefixed path string
+     * @param prefixed_path Path with prefix
+     * @param[out] fd File descriptor if successful
+     * @return NIXL_SUCCESS on success, error code otherwise
+     *
+     * Supported prefixes:
+     * - "RD:"  - Open in read-only mode
+     * - "WR:"  - Open in write-only mode (creates file if it doesn't exist)
+     * - "RW:"  - Open in read-write mode
+     * - "RDD:" - Open in read-only mode with O_DIRECT
+     * - "WRD:" - Open in write-only mode with O_DIRECT
+     * - "RWD:" - Open in read-write mode with O_DIRECT
+     * - "CRD:" - Create/truncate with O_DIRECT
+     */
+    static nixl_status_t openPrefixedFile(const std::string& prefixed_path, int& fd);
 
     /**
      * @brief Closes a file descriptor
@@ -87,9 +111,28 @@ public:
      */
     static nixl_status_t getFileSize(int fd, size_t& size);
 
+    /**
+     * @brief Validates if a file descriptor is valid and accessible
+     * @param fd File descriptor to validate
+     * @return NIXL_SUCCESS if valid, error code otherwise
+     */
+    static nixl_status_t validateFileDescriptor(int fd);
+
 private:
-    // Convert FileMode to system flags
-    static int getModeFlags(nixlFileMode mode);
+    /**
+     * @brief Convert FileMode to system flags
+     * @param mode File access mode
+     * @param use_direct Whether to use O_DIRECT flag
+     * @return Combined flags or -1 if invalid mode
+     */
+    static int getModeFlags(nixlFileMode mode, bool use_direct = false);
+
+    /**
+     * @brief Parse a prefixed path string into mode and actual path
+     * @param prefixed_path Path with prefix
+     * @return tuple of (success, mode, path) where success indicates if parsing was successful
+     */
+    static std::tuple<bool, nixlFileMode, std::string> parsePrefixedPath(const std::string& prefixed_path);
 };
 
-#endif // __FILE_UTILS_H 
+#endif // __FILE_UTILS_H
