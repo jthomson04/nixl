@@ -363,6 +363,16 @@ TEST_P(TestTransfer, remoteMDFromSocket)
                mem_type, dst_buffers);
 }
 
+TEST_P(TestTransfer, ListenerCommSize) {
+    std::vector<MemBuffer> buffers;
+    createRegisteredMem(getAgent(1), 64, 10000, DRAM_SEG, buffers);
+    auto status = fetchRemoteMD(0, 1);
+    ASSERT_EQ(NIXL_SUCCESS, status);
+    do {
+        status = checkRemoteMD(0, 1);
+    } while (status != NIXL_SUCCESS);
+}
+
 INSTANTIATE_TEST_SUITE_P(ucx, TestTransfer, testing::Values("UCX"));
 
 } // namespace gtest

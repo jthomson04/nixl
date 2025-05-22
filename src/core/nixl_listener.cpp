@@ -27,6 +27,7 @@
 #include <etcd/Watcher.hpp>
 #include <future>
 #endif // HAVE_ETCD
+#include <absl/strings/str_format.h>
 
 const std::string default_metadata_label = "metadata";
 const std::string default_partial_metadata_label = "partial_metadata";
@@ -94,33 +95,90 @@ int connectToIP(std::string ip_addr, int port) {
     return ret_fd;
 }
 
-size_t sendCommMessage(int fd, std::string msg){
-    size_t bytes;
-    bytes = send(fd, msg.c_str(), msg.size(), 0);
-    if(bytes < 0) {
-        NIXL_ERROR << "Cannot send on socket to fd " << fd;
+void
+sendCommMessage(int fd, std::string msg) {
+    ssize_t bytes;
+    size_t offset = 0, done = 0;
+    uint64_t size = msg.size();
+    struct iovec iov[2];
+
+    iov[0].iov_base = &size;
+    iov[0].iov_len = sizeof(size);
+    iov[1].iov_base = &msg[0];
+    iov[1].iov_len = msg.size();
+
+    for (int i = 0; i < 2;) {
+        bytes = send(fd, static_cast<char *>(iov[i].iov_base) + offset, iov[i].iov_len - offset, 0);
+        if (bytes < 0) {
+            if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
+                continue;
+            }
+
+            throw std::runtime_error(
+                    absl::StrFormat("sendCommMessage(fd=%d) %zu/%zu bytes failed, errno=%d",
+                                    fd,
+                                    done,
+                                    size + msg.size(),
+                                    errno));
+        }
+
+        offset += bytes;
+        done += bytes;
+        if (offset == iov[i].iov_len) {
+            offset = 0;
+            ++i;
+        }
     }
-    return bytes;
 }
 
-ssize_t recvCommMessage(int fd, std::string &msg){
-    char buffer[16384];
-    ssize_t one_recv_bytes = 0;
-    ssize_t recv_bytes = 0;
-    msg = std::string("");
-
-    do {
-        one_recv_bytes = recv(fd, buffer, sizeof(buffer), 0);
-        if (one_recv_bytes == -1){
-            if(errno == EAGAIN || errno == EWOULDBLOCK) return recv_bytes;
-            NIXL_ERROR << "Cannot recv on socket fd " << fd;
-            return one_recv_bytes;
+bool
+recvCommMessageType(int fd, void *data, size_t size, bool force = false) {
+    for (size_t done = 0; done < size;) {
+        ssize_t bytes = recv(fd, static_cast<char *>(data) + done, size - done, 0);
+        if (bytes > 0) {
+            done += bytes;
+            continue;
         }
-        msg.append(buffer, one_recv_bytes);
-        recv_bytes += one_recv_bytes;
-    } while(one_recv_bytes > 0);
+        if (bytes == 0 && done == 0 && !force) {
+            return false;
+        }
 
-    return recv_bytes;
+        if (bytes < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                if (!force && done == 0) {
+                    return false; // nothing to read yet
+                }
+
+                continue;
+            }
+        }
+
+        throw std::runtime_error(
+                absl::StrFormat("recvCommMessage(fd=%d) %zu/%zu bytes failed ret=%d errno=%d",
+                                fd,
+                                done,
+                                size,
+                                bytes,
+                                errno));
+    }
+
+    return true;
+}
+
+bool
+recvCommMessage(int fd, std::string &msg) {
+    size_t size;
+    if (!recvCommMessageType(fd, &size, sizeof(size))) {
+        return false;
+    }
+
+    msg.resize(size);
+    recvCommMessageType(fd, &msg[0], size, true);
+    return true;
 }
 
 #if HAVE_ETCD
@@ -547,9 +605,7 @@ void nixlAgentData::commWorker(nixlAgent* myAgent){
             std::vector<std::string> command_list;
             nixl_status_t ret;
 
-            ssize_t recv_bytes = recvCommMessage(socket_iter->second, commands);
-
-            if(recv_bytes == 0 || recv_bytes == -1) {
+            if (!recvCommMessage(socket_iter->second, commands)) {
                 socket_iter++;
                 continue;
             }
