@@ -21,8 +21,6 @@
 #ifndef _NIXL_H
 #define _NIXL_H
 
-#include <chrono>
-
 #include "nixl_types.h"
 #include "nixl_params.h"
 #include "nixl_descriptors.h"
