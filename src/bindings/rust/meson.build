@@ -48,7 +48,7 @@ if cargo.found() and get_option('enable_rust_bindings')
       install: true,
       install_dir: '.',
       env: [
-        'NIXL_PREFIX=' + get_option('prefix')
+        'NIXL_PREFIX=' + get_option('prefix'),
       ]
     )
 else
