@@ -147,6 +147,7 @@ public:
 struct xferBenchTransferMetrics {
     double total_duration;
     double estimated_duration;
+    double estimation_error;
 };
 
 class xferBenchUtils {
