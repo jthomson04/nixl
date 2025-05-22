@@ -489,7 +489,12 @@ void xferBenchUtils::printStats(bool is_target, size_t block_size, size_t batch_
     }
 
     total_data_transferred = ((block_size * batch_size) * num_iter); // In Bytes
-    avg_latency = (metrics.total_duration / (num_iter * batch_size)); // In microsec
+    avg_latency = (total_duration / (num_iter * batch_size)); // In microsec
+    if (IS_PAIRWISE_AND_MG()) {
+        total_data_transferred *= xferBenchConfig::num_initiator_dev; // In Bytes
+        avg_latency /= xferBenchConfig::num_initiator_dev; // In microsec
+    }
+
     throughput = (((double) total_data_transferred / (1024 * 1024)) /
                    (metrics.total_duration / 1e6));   // In MiB/Sec
     throughput_gib = (throughput / 1024);   // In GiB/Sec
