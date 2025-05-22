@@ -28,22 +28,22 @@ int nixlFileUtils::getModeFlags(nixlFileMode mode, bool use_direct) {
     switch (mode) {
         case nixlFileMode::CREATE:
         case nixlFileMode::CREATE_DIRECT:
-            return ((mode == nixlFileMode::CREATE_DIRECT || use_direct) ? O_DIRECT : 0) | 
+            return ((mode == nixlFileMode::CREATE_DIRECT || use_direct) ? O_DIRECT : 0) |
                    O_CREAT | O_WRONLY | O_TRUNC;
 
         case nixlFileMode::READ_ONLY:
         case nixlFileMode::READ_DIRECT:
-            return ((mode == nixlFileMode::READ_DIRECT || use_direct) ? O_DIRECT : 0) | 
+            return ((mode == nixlFileMode::READ_DIRECT || use_direct) ? O_DIRECT : 0) |
                    O_RDONLY;
 
         case nixlFileMode::WRITE_ONLY:
         case nixlFileMode::WRITE_DIRECT:
-            return ((mode == nixlFileMode::WRITE_DIRECT || use_direct) ? O_DIRECT : 0) | 
+            return ((mode == nixlFileMode::WRITE_DIRECT || use_direct) ? O_DIRECT : 0) |
                    O_WRONLY;
 
         case nixlFileMode::READ_WRITE:
         case nixlFileMode::READ_WRITE_DIRECT:
-            return ((mode == nixlFileMode::READ_WRITE_DIRECT || use_direct) ? O_DIRECT : 0) | 
+            return ((mode == nixlFileMode::READ_WRITE_DIRECT || use_direct) ? O_DIRECT : 0) |
                    O_RDWR | O_CREAT;
 
         default:

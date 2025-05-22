@@ -18,8 +18,8 @@ import os
 import sys
 
 import nixl._utils as nixl_utils
-from nixl._utils import FileMode, open_file, close_file, file_exists
 from nixl._api import nixl_agent, nixl_agent_config
+from nixl._utils import FileMode, close_file, file_exists, open_file
 
 if __name__ == "__main__":
     buf_size = 16 * 4096
