@@ -97,13 +97,12 @@ int connectToIP(std::string ip_addr, int port) {
 
 void
 sendCommMessage(int fd, std::string msg) {
-    ssize_t bytes;
     size_t size = msg.size();
     constexpr size_t iov_size = 2;
-    struct iovec iov[iov_size] = { {&size, sizeof(size)}, {&msg[0], msg.size()} };
+    struct iovec iov[iov_size] = { {&size, sizeof(size)}, {msg.data(), msg.size()} };
 
     for (size_t i = 0, offset = 0, sent = 0; i < iov_size;) {
-        bytes = send(fd, static_cast<char *>(iov[i].iov_base) + offset, iov[i].iov_len - offset, 0);
+        auto bytes = send(fd, static_cast<char *>(iov[i].iov_base) + offset, iov[i].iov_len - offset, 0);
         if (bytes < 0) {
             if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
                 continue;
@@ -129,7 +128,7 @@ sendCommMessage(int fd, std::string msg) {
 bool
 recvCommMessageType(int fd, void *data, size_t size, bool force = false) {
     for (size_t sent = 0; sent < size;) {
-        ssize_t bytes = recv(fd, static_cast<char *>(data) + sent, size - sent, 0);
+        auto bytes = recv(fd, static_cast<char *>(data) + sent, size - sent, 0);
         if (bytes > 0) {
             sent += bytes;
             continue;
@@ -172,7 +171,7 @@ recvCommMessage(int fd, std::string &msg) {
     }
 
     msg.resize(size);
-    return recvCommMessageType(fd, &msg[0], size, true);
+    return recvCommMessageType(fd, msg.data(), size, true);
 }
 
 #if HAVE_ETCD
