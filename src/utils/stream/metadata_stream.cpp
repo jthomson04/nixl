@@ -95,7 +95,7 @@ void nixlMDStreamListener::setupListener() {
 int nixlMDStreamListener::acceptClient() {
         csock = accept(socketFd, NULL, NULL);
         if (csock < 0 && errno != EAGAIN) {
-            NIXL_ERROR << "Cannot accept client connection: " << strerror(errno);
+            NIXL_ERROR << "Cannot accept client connection: " << nixl_strerror(errno);
         }
         return csock;
 }
@@ -105,7 +105,7 @@ void nixlMDStreamListener::acceptClientsAsync() {
     while(true) {
         int clientSocket = accept(socketFd, NULL, NULL);
         if (clientSocket < 0) {
-            NIXL_ERROR << "Cannot accept client connection: " << strerror(errno);
+            NIXL_ERROR << "Cannot accept client connection: " << nixl_strerror(errno);
             continue;
         }
         NIXL_INFO << "Client connected.";
@@ -178,13 +178,13 @@ bool nixlMDStreamClient::setupClient() {
 
     if (inet_pton(AF_INET, listenerAddress.c_str(),
                   &listenerAddr.sin_addr) <= 0) {
-        NIXL_ERROR << "Invalid address/ Address not supported: " << strerror(errno);
+        NIXL_ERROR << "Invalid address/ Address not supported: " << nixl_strerror(errno);
         return false;
     }
 
     if (connect(socketFd, (struct sockaddr*)&listenerAddr,
                 sizeof(listenerAddr)) < 0) {
-        NIXL_ERROR << "Connection Failed: "<< strerror(errno);
+        NIXL_ERROR << "Connection Failed: " << nixl_strerror(errno);
         closeStream();
         return false;
     }

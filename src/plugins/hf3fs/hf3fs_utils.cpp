@@ -28,7 +28,7 @@ nixl_status_t hf3fsUtil::registerFileHandle(int fd, int *ret)
 	if (ret_val > 0) {
         NIXL_LOG_AND_RETURN_IF_ERROR(NIXL_ERR_BACKEND,
             absl::StrFormat("Error registering file descriptor %d, error: %d (errno: %d - %s)",
-                            fd, ret_val, errno, strerror(errno)));
+                            fd, ret_val, errno, nixl_strerror(errno)));
 	}
 	*ret = ret_val;
 	return NIXL_SUCCESS;
@@ -59,7 +59,7 @@ nixl_status_t hf3fsUtil::wrapIOV(struct hf3fs_iov *iov, void *addr, size_t size,
     if (ret < 0) {
         NIXL_LOG_AND_RETURN_IF_ERROR(NIXL_ERR_BACKEND,
             absl::StrFormat("Error wrapping memory into IOV, error: %d (errno: %d - %s)",
-                           ret, errno, strerror(errno)));
+                           ret, errno, nixl_strerror(errno)));
     }
 
     return NIXL_SUCCESS;
@@ -72,7 +72,7 @@ nixl_status_t hf3fsUtil::createIOR(struct hf3fs_ior *ior, int num_ios, bool is_r
     if (ret < 0) {
         NIXL_LOG_AND_RETURN_IF_ERROR(NIXL_ERR_BACKEND,
             absl::StrFormat("Error creating IOR, error: %d (errno: %d - %s)",
-                           ret, errno, strerror(errno)));
+                           ret, errno, nixl_strerror(errno)));
     }
 
     return NIXL_SUCCESS;
@@ -86,7 +86,7 @@ nixl_status_t hf3fsUtil::createIOV(struct hf3fs_iov *iov, void *addr, size_t siz
     if (ret < 0) {
         NIXL_LOG_AND_RETURN_IF_ERROR(NIXL_ERR_BACKEND,
             absl::StrFormat("Error creating IOV, error: %d (errno: %d - %s)",
-                           ret, errno, strerror(errno)));
+                           ret, errno, nixl_strerror(errno)));
     }
 
     return NIXL_SUCCESS;
@@ -142,7 +142,7 @@ nixl_status_t hf3fsUtil::prepIO(struct hf3fs_ior *ior, struct hf3fs_iov *iov, vo
     if (ret < 0) {
         NIXL_LOG_AND_RETURN_IF_ERROR(NIXL_ERR_BACKEND,
             absl::StrFormat("Error: hf3fs prep io error: %d (errno: %d - %s)",
-                           ret, errno, strerror(errno)));
+                           ret, errno, nixl_strerror(errno)));
     }
 
     return NIXL_SUCCESS;
@@ -155,7 +155,7 @@ nixl_status_t hf3fsUtil::postIOR(struct hf3fs_ior *ior)
     if (ret < 0) {
         NIXL_LOG_AND_RETURN_IF_ERROR(NIXL_ERR_BACKEND,
             absl::StrFormat("hf3fs submit ios error: %d (errno: %d - %s)",
-                           ret, errno, strerror(errno)));
+                           ret, errno, nixl_strerror(errno)));
     }
 
     return NIXL_SUCCESS;
@@ -174,7 +174,7 @@ nixl_status_t hf3fsUtil::waitForIOs(struct hf3fs_ior *ior, struct hf3fs_cqe *cqe
     if (ret < 0 && ret != -ETIMEDOUT && ret != -EAGAIN) {
         NIXL_LOG_AND_RETURN_IF_ERROR(NIXL_ERR_BACKEND,
             absl::StrFormat("Error waiting for IOs: %d (errno: %d - %s)",
-                           ret, errno, strerror(errno)));
+                           ret, errno, nixl_strerror(errno)));
     }
 
     *num_completed = ret;
