@@ -16,7 +16,6 @@
  */
 
 #include <fcntl.h>
-#include <iostream>
 #include "nixl.h"
 #include "common/nixl_time.h"
 #include "common/str_tools.h"

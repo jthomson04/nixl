@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <iostream>
 #include "hf3fs_utils.h"
 #include <cstring>
 #include <cerrno>
