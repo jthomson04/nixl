@@ -88,8 +88,8 @@ void nixlMDStreamListener::setupListener() {
         closeStream();
         return;
     }
-    NIXL_INFO << "MD listener is listening on port "
-              << port << "...";
+    NIXL_DEBUG << "MD listener is listening on port "
+               << port << "...";
 }
 
 int nixlMDStreamListener::acceptClient() {
@@ -108,7 +108,7 @@ void nixlMDStreamListener::acceptClientsAsync() {
             NIXL_ERROR << "Cannot accept client connection: " << nixl_strerror(errno);
             continue;
         }
-        NIXL_INFO << "Client connected.";
+        NIXL_DEBUG << "Client connected.";
         std::thread clientThread(&nixlMDStreamListener::recvFromClients,
                                  this, clientSocket);
         clientThread.detach();
@@ -125,7 +125,7 @@ std::string nixlMDStreamListener::recvFromClient() {
         if (bytes_read > 0) {
                 recvData = std::string(buffer, bytes_read);
         } else if (bytes_read == 0) {
-                NIXL_INFO << "Client Disconnected";
+                NIXL_DEBUG << "Client Disconnected";
         } else {
                 NIXL_ERROR << "Error receiving data";
         }
@@ -143,10 +143,10 @@ void nixlMDStreamListener::recvFromClients(int clientSocket) {
               std::string ack = "Message received";
               send(clientSocket, ack.c_str(), ack.size(), 0);
               std::string recv_message(buffer);
-              NIXL_INFO << "Message Received" << recv_message;
+              NIXL_DEBUG << "Message Received" << recv_message;
         }
         close(clientSocket);
-        NIXL_INFO << "Client Disconnected";
+        NIXL_DEBUG << "Client Disconnected";
 }
 
 void nixlMDStreamListener::startListenerForClient() {
@@ -188,8 +188,8 @@ bool nixlMDStreamClient::setupClient() {
         closeStream();
         return false;
     }
-    NIXL_INFO << "Connected to listener at "
-              << listenerAddress << ":" << port;
+    NIXL_DEBUG << "Connected to listener at "
+               << listenerAddress << ":" << port;
     return true;
 }
 
