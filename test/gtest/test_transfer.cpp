@@ -124,8 +124,8 @@ protected:
     nixlDescList<Desc>
     makeDescList(Iter begin, Iter end) {
         nixlDescList<Desc> desc_list(MemType);
-        for (auto it = begin; it != end; ++it) {
-            desc_list.addDesc(Desc(it->data(), it->size(), DEV_ID));
+        for (; begin != end; ++begin) {
+            desc_list.addDesc(Desc(begin->data(), begin->size(), DEV_ID));
         }
         return desc_list;
     }
