@@ -195,14 +195,16 @@ nixl_status_t nixlFileUtils::closeFile(int fd) {
 }
 
 nixl_status_t nixlFileUtils::unlinkFile(const std::string& path) {
-    if (unlink(path.c_str()) == -1) {
-        switch (errno) {
+    std::error_code ec;
+    if (!std::filesystem::remove(path, ec)) {
+        switch (ec.value()) {
             case EACCES:
             case EPERM:
                 return NIXL_ERR_NOT_ALLOWED;
             case ENOENT:
                 return NIXL_ERR_NOT_FOUND;
             default:
+                NIXL_ERROR << absl::StrFormat("Failed to unlink file: %s - %s", path, ec.message());
                 return NIXL_ERR_BACKEND;
         }
     }
@@ -210,15 +212,16 @@ nixl_status_t nixlFileUtils::unlinkFile(const std::string& path) {
 }
 
 nixl_status_t nixlFileUtils::fileExists(const std::string& path) {
-    struct stat st;
-    if (stat(path.c_str(), &st) == -1) {
-        if (errno == ENOENT) {
+    std::error_code ec;
+    if (!std::filesystem::exists(path, ec)) {
+        if (ec.value() == ENOENT) {
             return NIXL_ERR_NOT_FOUND;
         }
-        switch (errno) {
+        switch (ec.value()) {
             case EACCES:
                 return NIXL_ERR_NOT_ALLOWED;
             default:
+                NIXL_ERROR << absl::StrFormat("Failed to check file existence: %s - %s", path, ec.message());
                 return NIXL_ERR_BACKEND;
         }
     }
@@ -226,17 +229,23 @@ nixl_status_t nixlFileUtils::fileExists(const std::string& path) {
 }
 
 nixl_status_t nixlFileUtils::getFileSize(int fd, size_t& size) {
-    struct stat st;
-    if (fstat(fd, &st) == -1) {
-        switch (errno) {
-            case EBADF:
-                return NIXL_ERR_INVALID_PARAM;
-            default:
-                return NIXL_ERR_BACKEND;
+    try {
+        struct stat st;
+        if (fstat(fd, &st) == -1) {
+            switch (errno) {
+                case EBADF:
+                    return NIXL_ERR_INVALID_PARAM;
+                default:
+                    NIXL_ERROR << absl::StrFormat("Failed to get file size: fd %d - %s", fd, strerror(errno));
+                    return NIXL_ERR_BACKEND;
+            }
         }
+        size = static_cast<size_t>(st.st_size);
+        return NIXL_SUCCESS;
+    } catch (const std::filesystem::filesystem_error& e) {
+        NIXL_ERROR << absl::StrFormat("Filesystem error getting file size: %s", e.what());
+        return NIXL_ERR_BACKEND;
     }
-    size = st.st_size;
-    return NIXL_SUCCESS;
 }
 
 nixl_status_t nixlFileUtils::validateFileDescriptor(int fd) {
