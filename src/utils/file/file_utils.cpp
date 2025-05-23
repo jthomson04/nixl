@@ -213,10 +213,10 @@ nixl_status_t nixlFileUtils::unlinkFile(const std::string& path) {
 
 nixl_status_t nixlFileUtils::fileExists(const std::string& path) {
     std::error_code ec;
-    if (!std::filesystem::exists(path, ec)) {
-        if (ec.value() == ENOENT) {
-            return NIXL_ERR_NOT_FOUND;
-        }
+    bool exists = std::filesystem::exists(path, ec);
+
+    // First check if we got an error
+    if (ec) {
         switch (ec.value()) {
             case EACCES:
                 return NIXL_ERR_NOT_ALLOWED;
@@ -225,6 +225,12 @@ nixl_status_t nixlFileUtils::fileExists(const std::string& path) {
                 return NIXL_ERR_BACKEND;
         }
     }
+
+    // If no error but file doesn't exist, return NOT_FOUND
+    if (!exists) {
+        return NIXL_ERR_NOT_FOUND;
+    }
+
     return NIXL_SUCCESS;
 }
 

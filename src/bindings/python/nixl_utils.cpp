@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 #include <pybind11/pybind11.h>
-#include <cassert>
 #include <file_utils.h>
 
 namespace py = pybind11;
@@ -90,12 +89,8 @@ PYBIND11_MODULE(_utils, m) {
         .value("STAT", nixlFileOperation::STAT)
         .export_values();
 
-    m.def("open_file", &open_file, "Open a file with specified mode",
-          py::arg("path"), py::arg("mode"));
-    m.def("close_file", &close_file, "Close a file descriptor",
-          py::arg("fd"));
-    m.def("unlink_file", &unlink_file, "Delete a file",
-          py::arg("path"));
-    m.def("file_exists", &file_exists, "Check if a file exists",
-          py::arg("path"));
+    m.def("open_file", &open_file, "Open a file with specified mode");
+    m.def("close_file", &close_file, "Close a file descriptor");
+    m.def("unlink_file", &unlink_file, "Delete a file");
+    m.def("file_exists", &file_exists, "Check if a file exists");
 }
