@@ -98,16 +98,11 @@ int connectToIP(std::string ip_addr, int port) {
 void
 sendCommMessage(int fd, std::string msg) {
     ssize_t bytes;
-    size_t offset = 0, done = 0;
-    uint64_t size = msg.size();
-    struct iovec iov[2];
+    size_t size = msg.size();
+    constexpr size_t iov_size = 2;
+    struct iovec iov[iov_size] = { {&size, sizeof(size)}, {&msg[0], msg.size()} };
 
-    iov[0].iov_base = &size;
-    iov[0].iov_len = sizeof(size);
-    iov[1].iov_base = &msg[0];
-    iov[1].iov_len = msg.size();
-
-    for (int i = 0; i < 2;) {
+    for (size_t i = 0, offset = 0, sent = 0; i < iov_size;) {
         bytes = send(fd, static_cast<char *>(iov[i].iov_base) + offset, iov[i].iov_len - offset, 0);
         if (bytes < 0) {
             if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -117,13 +112,13 @@ sendCommMessage(int fd, std::string msg) {
             throw std::runtime_error(
                     absl::StrFormat("sendCommMessage(fd=%d) %zu/%zu bytes failed, errno=%d",
                                     fd,
-                                    done,
-                                    size + msg.size(),
+                                    sent,
+                                    size + sizeof(size),
                                     errno));
         }
 
         offset += bytes;
-        done += bytes;
+        sent += bytes;
         if (offset == iov[i].iov_len) {
             offset = 0;
             ++i;
@@ -133,13 +128,13 @@ sendCommMessage(int fd, std::string msg) {
 
 bool
 recvCommMessageType(int fd, void *data, size_t size, bool force = false) {
-    for (size_t done = 0; done < size;) {
-        ssize_t bytes = recv(fd, static_cast<char *>(data) + done, size - done, 0);
+    for (size_t sent = 0; sent < size;) {
+        ssize_t bytes = recv(fd, static_cast<char *>(data) + sent, size - sent, 0);
         if (bytes > 0) {
-            done += bytes;
+            sent += bytes;
             continue;
         }
-        if (bytes == 0 && done == 0 && !force) {
+        if (bytes == 0 && sent == 0 && !force) {
             return false;
         }
 
@@ -149,7 +144,7 @@ recvCommMessageType(int fd, void *data, size_t size, bool force = false) {
             }
 
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                if (!force && done == 0) {
+                if (!force && sent == 0) {
                     return false; // nothing to read yet
                 }
 
@@ -160,7 +155,7 @@ recvCommMessageType(int fd, void *data, size_t size, bool force = false) {
         throw std::runtime_error(
                 absl::StrFormat("recvCommMessage(fd=%d) %zu/%zu bytes failed ret=%d errno=%d",
                                 fd,
-                                done,
+                                sent,
                                 size,
                                 bytes,
                                 errno));
@@ -177,8 +172,7 @@ recvCommMessage(int fd, std::string &msg) {
     }
 
     msg.resize(size);
-    recvCommMessageType(fd, &msg[0], size, true);
-    return true;
+    return recvCommMessageType(fd, &msg[0], size, true);
 }
 
 #if HAVE_ETCD
