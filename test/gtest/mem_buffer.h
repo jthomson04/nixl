@@ -20,10 +20,78 @@
 
 #include "nixl_types.h"
 #include <cstdint>
+#include <stdexcept>
+#include <vector>
+#include <random>
+#include <memory>
+#include <type_traits>
 
 namespace gtest {
 
 template<nixl_mem_t MemType> class MemBuffer;
+
+template<nixl_mem_t MemType> using MemBufferVec = std::vector<MemBuffer<MemType>>;
+
+template<nixl_mem_t MemType> using MemBufferVec2D = std::vector<MemBufferVec<MemType>>;
+
+template<nixl_mem_t MemType>
+std::vector<uint8_t>
+createRandomData(size_t size,
+                 std::mt19937_64 &gen,
+                 std::uniform_int_distribution<uint64_t> &distrib) {
+    size_t aligned_size = (size + 7) & ~7;
+    std::vector<uint8_t> data(aligned_size);
+
+    for (size_t i = 0; i < aligned_size; i += 8) {
+        uint64_t rand_val = distrib(gen);
+        for (size_t j = 0; j < 8; ++j) {
+            data[i + j] = static_cast<uint8_t>(rand_val >> (j * 8));
+        }
+    }
+
+    data.resize(size);
+    return data;
+}
+
+template<nixl_mem_t LocalMemType, nixl_mem_t RemoteMemType, nixl_xfer_op_t Mode>
+void
+initBuffersWithRandomData(MemBufferVec<LocalMemType> &local_buffers,
+                          MemBufferVec<RemoteMemType> &remote_buffers,
+                          size_t count,
+                          size_t size,
+                          std::mt19937_64 &gen,
+                          std::uniform_int_distribution<uint64_t> &distrib) {
+    for (size_t i = 0; i < count; i++) {
+        auto random_data = createRandomData<LocalMemType>(size, gen, distrib);
+        if constexpr (Mode == NIXL_WRITE) {
+            local_buffers.emplace_back(std::move(random_data));
+            remote_buffers.emplace_back(size);
+        } else if constexpr (Mode == NIXL_READ) {
+            local_buffers.emplace_back(size);
+            remote_buffers.emplace_back(std::move(random_data));
+        } else {
+            static_assert(Mode == NIXL_WRITE || Mode == NIXL_READ, "Invalid transfer mode");
+        }
+    }
+}
+
+template<nixl_mem_t LocalMemType, nixl_mem_t RemoteMemType, nixl_xfer_op_t Mode>
+void
+zeroBuffers(MemBufferVec<LocalMemType> &local_buffers,
+            MemBufferVec<RemoteMemType> &remote_buffers,
+            size_t count) {
+    if constexpr (Mode == NIXL_WRITE) {
+        for (size_t i = 0; i < count; i++) {
+            remote_buffers[i].zero();
+        }
+    } else if constexpr (Mode == NIXL_READ) {
+        for (size_t i = 0; i < count; i++) {
+            local_buffers[i].zero();
+        }
+    } else {
+        static_assert(Mode == NIXL_WRITE || Mode == NIXL_READ, "Invalid transfer mode");
+    }
+}
 
 template<> class MemBuffer<DRAM_SEG> {
 public:
@@ -86,10 +154,9 @@ public:
     MemBuffer &
     operator=(const MemBuffer &) = delete;
 
-    MemBuffer(MemBuffer &&other) noexcept : buffer_(other.buffer_), size_(other.size_) {
-        other.buffer_ = nullptr;
-        other.size_ = 0;
-    }
+    MemBuffer(MemBuffer &&other) noexcept :
+            buffer_(std::exchange(other.buffer_, nullptr)),
+            size_(std::exchange(other.size_, 0)) {}
 
     MemBuffer &
     operator=(MemBuffer &&other) noexcept {
@@ -97,10 +164,8 @@ public:
             if (buffer_) {
                 cudaFree(buffer_);
             }
-            buffer_ = other.buffer_;
-            size_ = other.size_;
-            other.buffer_ = nullptr;
-            other.size_ = 0;
+            buffer_ = std::exchange(other.buffer_, nullptr);
+            size_ = std::exchange(other.size_, 0);
         }
         return *this;
     }
@@ -134,6 +199,5 @@ private:
 } // namespace gtest
 
 #endif // HAVE_CUDA
-
 
 #endif /* MEM_BUFFER_H */
