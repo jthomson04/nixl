@@ -43,6 +43,9 @@ RUN apt-get update -y && \
     flex \
     build-essential
 
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install \
+    --reinstall libibverbs-dev rdma-core ibverbs-utils libibumad-dev
+
 WORKDIR /workspace
 RUN git clone https://github.com/etcd-cpp-apiv3/etcd-cpp-apiv3.git &&\
 	cd etcd-cpp-apiv3 && mkdir build && cd build && \
@@ -74,8 +77,6 @@ ENV VIRTUAL_ENV=/workspace/nixl/.venv
 RUN uv venv $VIRTUAL_ENV --python $DEFAULT_PYTHON_VERSION && \
     # pybind11 pip install needed for ubuntu 22.04
     uv pip install --upgrade meson pybind11 patchelf
-
-COPY . /workspace/nixl
 
 RUN rm -rf /usr/lib/ucx
 RUN rm -rf /opt/hpcx/ucx

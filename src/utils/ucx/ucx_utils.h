@@ -94,6 +94,10 @@ public:
     nixl_status_t write(void *laddr, nixlUcxMem &mem,
                         uint64_t raddr, nixlUcxRkey &rk,
                         size_t size, nixlUcxReq &req);
+    nixl_status_t estimateCost(size_t size,
+                               std::chrono::microseconds &duration,
+                               std::chrono::microseconds &err_margin,
+                               nixl_cost_t &method);
     nixl_status_t flushEp(nixlUcxReq &req);
 };
 
@@ -176,7 +180,8 @@ public:
 [[nodiscard]] static inline nixl_b_params_t get_ucx_backend_common_options() {
     return {
         { "ucx_devices", "" },
-        { "ucx_error_handling_mode", "none" } // or "peer"
+        { "ucx_error_handling_mode", "none" }, // or "peer"
+        { "num_workers", "1" }
     };
 }
 

@@ -14,21 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#ifndef HF3FS_LOG_H
+#define HF3FS_LOG_H
 
-#ifndef ASYNC_QUEUE_H
-#define ASYNC_QUEUE_H
+#include <absl/strings/str_format.h>
+#include "common/nixl_log.h"
 
-#include "common/status.h"
-#include "nixl_types.h"
-#include <sys/types.h>
+#define HF3FS_LOG_RETURN(error_code, message) \
+    do { \
+        NIXL_ERROR << absl::StrFormat("HF3FS error: %d - %s", (error_code), (message)); \
+        return error_code; \
+    } while (0)
 
-// Abstract base class for async I/O operations
-class nixlPosixQueue {
-    public:
-        virtual ~nixlPosixQueue() = default;
-        virtual nixl_status_t submit() = 0;
-        virtual nixl_status_t checkCompleted() = 0;
-        virtual nixl_status_t prepareIO(int fd, void* buf, size_t len, off_t offset) = 0;
-};
-
-#endif // ASYNC_QUEUE_H
+#endif // HF3FS_LOG_H
