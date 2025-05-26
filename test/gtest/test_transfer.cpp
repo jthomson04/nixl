@@ -175,13 +175,13 @@ protected:
     }
 
     static bool wait_until_true(std::function<bool()> func, int retries = 500) {
-      bool result;
+        bool result;
 
-      while (!(result = func()) && retries-- > 0) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-      }
+        while (!(result = func()) && retries-- > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
 
-      return result;
+        return result;
     }
 
     void exchangeMDIP()
