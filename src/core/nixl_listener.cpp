@@ -95,10 +95,13 @@ int connectToIP(std::string ip_addr, int port) {
 }
 
 void
-sendCommMessage(int fd, std::string msg) {
+sendCommMessage(int fd, const std::string& msg) {
     size_t size = msg.size();
     constexpr size_t iov_size = 2;
-    struct iovec iov[iov_size] = { {&size, sizeof(size)}, {msg.data(), msg.size()} };
+    struct iovec iov[iov_size] = {
+        {&size, sizeof(size)},
+        {const_cast<char*>(msg.data()), msg.size()}
+    };
 
     for (size_t i = 0, offset = 0, sent = 0; i < iov_size;) {
         auto bytes = send(fd, static_cast<char *>(iov[i].iov_base) + offset, iov[i].iov_len - offset, 0);
