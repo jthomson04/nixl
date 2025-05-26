@@ -93,7 +93,7 @@ int connectToIP(std::string ip_addr, int port) {
     return ret_fd;
 }
 
-size_t sendCommMessage(int fd, std::string msg){
+size_t sendCommMessage(int fd, const std::string& msg){
     size_t bytes;
     bytes = send(fd, msg.c_str(), msg.size(), 0);
     if(bytes < 0) {
