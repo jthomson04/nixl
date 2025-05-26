@@ -440,15 +440,15 @@ void nixlAgentData::commWorker(nixlAgent* myAgent){
 
             switch(req_command) {
             case SOCK_SEND: {
-                sendCommMessage(client_fd, std::string("NIXLCOMM:LOAD" + my_MD));
+                sendCommMessage(client_fd, "NIXLCOMM:LOAD" + my_MD);
                 break;
             }
             case SOCK_FETCH: {
-                sendCommMessage(client_fd, std::string("NIXLCOMM:SEND"));
+                sendCommMessage(client_fd, "NIXLCOMM:SEND");
                 break;
             }
             case SOCK_INVAL: {
-                sendCommMessage(client_fd, std::string("NIXLCOMM:INVL") + name);
+                sendCommMessage(client_fd, "NIXLCOMM:INVL" + name);
                 break;
             }
 #if HAVE_ETCD
