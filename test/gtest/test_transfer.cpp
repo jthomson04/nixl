@@ -27,6 +27,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <thread>
 
 #ifdef HAVE_CUDA
 #include <cuda_runtime.h>
@@ -95,13 +96,24 @@ protected:
     static nixlAgentConfig getConfig(int listen_port)
     {
         return nixlAgentConfig(false, listen_port > 0, listen_port,
-                               nixl_thread_sync_t::NIXL_THREAD_SYNC_STRICT, 0,
+                               nixl_thread_sync_t::NIXL_THREAD_SYNC_RW, 0,
                                100000);
     }
 
     static int getPort(int i)
     {
         return 9000 + i;
+    }
+
+    nixl_b_params_t getBackendParams()
+    {
+        nixl_b_params_t params;
+
+        if (getBackendName() == "UCX" || getBackendName() == "UCX_MO") {
+            params["num_workers"] = "2";
+        }
+
+        return params;
     }
 
     void SetUp() override
@@ -115,8 +127,8 @@ protected:
             agents.emplace_back(std::make_unique<nixlAgent>(getAgentName(i),
                                                             getConfig(getPort(i))));
             nixlBackendH *backend_handle = nullptr;
-            nixl_status_t status = agents.back()->createBackend(getBackendName(), {},
-                                                                backend_handle);
+            nixl_status_t status = agents.back()->createBackend(
+                    getBackendName(), getBackendParams(), backend_handle);
             ASSERT_EQ(status, NIXL_SUCCESS);
             EXPECT_NE(backend_handle, nullptr);
         }
@@ -257,9 +269,33 @@ protected:
         registerMem(agent, out, mem_type);
     }
 
+    void verifyNotifs(nixlAgent &agent, const std::string &from_name, size_t expected_count)
+    {
+        nixl_notifs_t notif_map;
+        int backoff_ms = 1;
+
+        for (int i = 0; i < 10; i++) {
+            nixl_status_t status = agent.getNotifs(notif_map);
+            ASSERT_EQ(status, NIXL_SUCCESS);
+
+            if (notif_map[from_name].size() >= expected_count) {
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(backoff_ms));
+            backoff_ms *= 2;
+        }
+
+        auto& notif_list = notif_map[from_name];
+        EXPECT_EQ(notif_list.size(), expected_count);
+
+        for (const auto& notif : notif_list) {
+            EXPECT_EQ(notif, NOTIF_MSG);
+        }
+    }
+
     void doTransfer(nixlAgent &from, const std::string &from_name,
                     nixlAgent &to, const std::string &to_name, size_t size,
-                    size_t count, size_t repeat,
+                    size_t count, size_t repeat, size_t num_threads,
                     nixl_mem_t src_mem_type,
                     std::vector<MemBuffer> src_buffers,
                     nixl_mem_t dst_mem_type,
@@ -269,35 +305,52 @@ protected:
         extra_params.hasNotif = true;
         extra_params.notifMsg = NOTIF_MSG;
 
-        nixlXferReqH *xfer_req = nullptr;
-        nixl_status_t status   = from.createXferReq(
-                NIXL_WRITE,
-                makeDescList<nixlBasicDesc>(src_buffers, src_mem_type),
-                makeDescList<nixlBasicDesc>(dst_buffers, dst_mem_type), to_name,
-                xfer_req, &extra_params);
-        ASSERT_EQ(status, NIXL_SUCCESS);
-        EXPECT_NE(xfer_req, nullptr);
-
         auto start_time = absl::Now();
-        for (size_t i = 0; i < repeat; i++) {
-            status = from.postXferReq(xfer_req);
-            ASSERT_GE(status, NIXL_SUCCESS);
 
-            waitForXfer(from, from_name, to, xfer_req);
+        std::vector<std::thread> threads;
+        for (size_t thread = 0; thread < num_threads; ++thread) {
+            threads.emplace_back([&]() {
+                nixlXferReqH *xfer_req = nullptr;
+                nixl_status_t status = from.createXferReq(
+                        NIXL_WRITE,
+                        makeDescList<nixlBasicDesc>(src_buffers, src_mem_type),
+                        makeDescList<nixlBasicDesc>(dst_buffers, dst_mem_type), to_name,
+                        xfer_req, &extra_params);
+                ASSERT_EQ(status, NIXL_SUCCESS);
+                EXPECT_NE(xfer_req, nullptr);
 
-            status = from.getXferStatus(xfer_req);
-            EXPECT_EQ(status, NIXL_SUCCESS);
+                for (size_t i = 0; i < repeat; i++) {
+                    status = from.postXferReq(xfer_req);
+                    ASSERT_GE(status, NIXL_SUCCESS);
+
+                    bool xfer_done = false;
+                    do {
+                        status = from.getXferStatus(xfer_req);
+                        EXPECT_TRUE((status == NIXL_SUCCESS) || (status == NIXL_IN_PROG));
+                        xfer_done = (status == NIXL_SUCCESS);
+                    } while (!xfer_done);
+
+                    status = from.getXferStatus(xfer_req);
+                    EXPECT_EQ(status, NIXL_SUCCESS);
+                }
+
+                status = from.releaseXferReq(xfer_req);
+                EXPECT_EQ(status, NIXL_SUCCESS);
+            });
         }
-        auto total_time = absl::ToDoubleSeconds(absl::Now() - start_time);
 
-        auto total_size = size * count * repeat;
+        for (auto& thread : threads) {
+            thread.join();
+        }
+
+        verifyNotifs(to, from_name, repeat * num_threads);
+
+        auto total_time = absl::ToDoubleSeconds(absl::Now() - start_time);
+        auto total_size = size * count * repeat * num_threads;
         auto bandwidth  = total_size / total_time / (1024 * 1024 * 1024);
-        Logger() << size << "x" << count << "x" << repeat << "=" << total_size
+        Logger() << size << "x" << count << "x" << repeat << "x" << num_threads << "=" << total_size
                  << " bytes in " << total_time << " seconds "
                  << "(" << bandwidth << " GB/s)";
-
-        status = from.releaseXferReq(xfer_req);
-        EXPECT_EQ(status, NIXL_SUCCESS);
 
         invalidateMD();
     }
@@ -325,15 +378,15 @@ const std::string TestTransfer::NOTIF_MSG = "notification";
 
 TEST_P(TestTransfer, RandomSizes)
 {
-    // Tuple fields are: size, count, repeat
-    constexpr std::array<std::tuple<size_t, size_t, size_t>, 4> test_cases = {
-        {{40, 1000, 1},
-         {4096, 8, 3},
-         {32768, 64, 3},
-         {1000000, 100, 3}}
+    // Tuple fields are: size, count, repeat, num_threads
+    constexpr std::array<std::tuple<size_t, size_t, size_t, size_t>, 4> test_cases = {
+        {{40, 1000, 1, 4},
+         {4096, 8, 3, 4},
+         {32768, 64, 3, 4},
+         {1000000, 100, 3, 4}}
     };
 
-    for (const auto &[size, count, repeat] : test_cases) {
+    for (const auto &[size, count, repeat, num_threads] : test_cases) {
         std::vector<MemBuffer> src_buffers, dst_buffers;
 
         createRegisteredMem(getAgent(0), size, count, DRAM_SEG, src_buffers);
@@ -341,7 +394,7 @@ TEST_P(TestTransfer, RandomSizes)
 
         exchangeMD();
         doTransfer(getAgent(0), getAgentName(0), getAgent(1), getAgentName(1),
-                   size, count, repeat,
+                   size, count, repeat, num_threads,
                    DRAM_SEG, src_buffers,
                    DRAM_SEG, dst_buffers);
     }
@@ -359,7 +412,7 @@ TEST_P(TestTransfer, remoteMDFromSocket)
 
     exchangeMDIP();
     doTransfer(getAgent(0), getAgentName(0), getAgent(1), getAgentName(1),
-               size, count, 1,
+               size, count, 1, 1,
                mem_type, src_buffers,
                mem_type, dst_buffers);
 }
