@@ -658,6 +658,7 @@ nixlAgent::createXferReq(const nixl_xfer_op_t &operation,
     NIXL_SHARED_LOCK_GUARD(data->lock);
     if (data->remoteSections.count(remote_agent) == 0)
     {
+        delete backend_set;
         return NIXL_ERR_NOT_FOUND;
     }
 
@@ -1215,6 +1216,7 @@ nixlAgent::loadRemoteMD (const nixl_blob_t &remote_metadata,
     if (ret) {
         delete data->remoteSections[remote_agent];
         data->remoteSections.erase(remote_agent);
+        data->remoteBackends.erase(remote_agent);
         return ret;
     }
 
@@ -1286,10 +1288,11 @@ nixlAgent::sendLocalPartialMD(const nixl_reg_dlist_t &descs,
 #if HAVE_ETCD
     // If no IP is provided, use etcd (now via thread)
     if (data->useEtcd) {
-        std::string metadata_label = extra_params && !extra_params->metadataLabel.empty() ?
-                                     extra_params->metadataLabel :
-                                     default_partial_metadata_label;
-        data->enqueueCommWork(std::make_tuple(ETCD_SEND, std::move(metadata_label), 0, std::move(myMD)));
+        if (!extra_params || extra_params->metadataLabel.empty()) {
+            NIXL_ERROR << "Metadata label is required for etcd send of local partial metadata";
+            return NIXL_ERR_INVALID_PARAM;
+        }
+        data->enqueueCommWork(std::make_tuple(ETCD_SEND, extra_params->metadataLabel, 0, std::move(myMD)));
         return NIXL_SUCCESS;
     }
     return NIXL_ERR_INVALID_PARAM;
@@ -1351,6 +1354,7 @@ nixlAgent::checkRemoteMD (const std::string remote_name,
             return NIXL_SUCCESS;
         } else {
             nixl_meta_dlist_t dummy(descs.getType(), descs.isSorted());
+            // We only add to data->remoteBackends if data->backendEngines[backend] exists
             for (const auto& [backend, conn_info] : data->remoteBackends[remote_name])
                 if (data->remoteSections[remote_name]->populate(
                           descs, data->backendEngines[backend], dummy) == NIXL_SUCCESS)
