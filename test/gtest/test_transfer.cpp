@@ -95,7 +95,7 @@ class TestTransfer : public testing::TestWithParam<std::string> {
 protected:
     static nixlAgentConfig getConfig(int listen_port)
     {
-        return nixlAgentConfig(false, listen_port > 0, listen_port,
+        return nixlAgentConfig(true, listen_port > 0, listen_port,
                                nixl_thread_sync_t::NIXL_THREAD_SYNC_RW, 0,
                                100000);
     }
@@ -293,6 +293,36 @@ protected:
         }
     }
 
+    void
+    doNotificationTest(nixlAgent &from,
+                       const std::string &from_name,
+                       nixlAgent &to,
+                       const std::string &to_name,
+                       size_t repeat,
+                       size_t num_threads) {
+        const size_t total_notifs = repeat * num_threads;
+
+        exchangeMD();
+
+        std::vector<std::thread> threads;
+        for (size_t thread = 0; thread < num_threads; ++thread) {
+            threads.emplace_back([&]() {
+                for (size_t i = 0; i < repeat; ++i) {
+                    nixl_status_t status = from.genNotif(to_name, NOTIF_MSG);
+                    ASSERT_EQ(status, NIXL_SUCCESS);
+                }
+            });
+        }
+
+        for (auto &thread : threads) {
+            thread.join();
+        }
+
+        verifyNotifs(to, from_name, total_notifs);
+
+        invalidateMD();
+    }
+
     void doTransfer(nixlAgent &from, const std::string &from_name,
                     nixlAgent &to, const std::string &to_name, size_t size,
                     size_t count, size_t repeat, size_t num_threads,
@@ -415,6 +445,13 @@ TEST_P(TestTransfer, remoteMDFromSocket)
                size, count, 1, 1,
                mem_type, src_buffers,
                mem_type, dst_buffers);
+}
+
+TEST_P(TestTransfer, NotificationOnly) {
+    constexpr size_t repeat = 100;
+    constexpr size_t num_threads = 4;
+    doNotificationTest(
+            getAgent(0), getAgentName(0), getAgent(1), getAgentName(1), repeat, num_threads);
 }
 
 INSTANTIATE_TEST_SUITE_P(ucx, TestTransfer, testing::Values("UCX"));
