@@ -37,7 +37,8 @@ You can compile the bindings using stub implementations that don't require the a
 cargo build --features stub-api
 ```
 
-**Important**: When using stubs, any attempt to actually call NIXL functions at runtime will print an error message and abort the program. The stubs are only meant for compilation, not execution.
+**Important**: When using stubs, any attempt to actually call NIXL functions at runtime will print an error message and abort the program. 
+- The stubs are only meant for compilation, not execution.
 
 ### Environment Variables
 
