@@ -17,7 +17,7 @@
 #include "wrapper.h"
 
 #include <cstdlib>
-#include <cstdio>
+#include <iostream>
 
 // NOTE: The original includes from nixl.h, nixl_types.h, cstring, exception, etc. are removed here.
 // The original blank lines around includes are also implicitly handled by this replacement.
@@ -41,7 +41,7 @@ struct nixl_capi_notif_map_s { /* empty */ };
 nixl_capi_status_t
 nixl_capi_stub_abort()
 {
-  printf("nixl error: detected use of the NIXL C API's stub; if you want to use NIXL, don't use the stub-api feature.\n");
+  std::cerr << "nixl error: detected use of the NIXL C API's stub; if you want to use NIXL, don't use the stub-api feature.\n";
   std::abort();
   return NIXL_CAPI_ERROR_EXCEPTION;
 }

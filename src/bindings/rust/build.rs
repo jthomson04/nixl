@@ -64,10 +64,72 @@ fn get_arch() -> String {
     }
 }
 
-fn run_build(use_stub_api: bool) {
-    if use_stub_api {
-        println!("cargo:warning=Building with stub API - NIXL functions will abort if called");
+fn build_nixl(cc_builder: &mut cc::Build) {
+    let nixl_root_path =
+        env::var("NIXL_PREFIX").unwrap_or_else(|_| "/opt/nvidia/nvda_nixl".to_string());
+    let nixl_include_path = format!("{}/include", nixl_root_path);
+
+    cc_builder
+        .file("wrapper.cpp")
+        .include(&nixl_include_path)
+        .include("../../api/cpp")
+        .include("../../infra")
+        .include("../../core");
+
+    let arch = get_arch();
+    let nixl_lib_path = get_lib_path(&nixl_root_path, &arch);
+
+    println!("cargo:rustc-link-search={}", nixl_lib_path);
+
+    let etcd_enabled = env::var("HAVE_ETCD").map(|v| v != "0").unwrap_or(false);
+
+    if etcd_enabled {
+        cc_builder.define("HAVE_ETCD", "1");
     }
+
+    cc_builder.compile("wrapper");
+
+    // Link against NIXL libraries in correct order
+    // Only link against etcd-cpp-api if it's enabled
+    if etcd_enabled {
+        println!("cargo:rustc-link-lib=dylib=etcd-cpp-api");
+    }
+    println!("cargo:rustc-link-lib=dylib=stream");
+    println!("cargo:rustc-link-lib=dylib=nixl_common");
+    println!("cargo:rustc-link-lib=dylib=nixl");
+    println!("cargo:rustc-link-lib=dylib=nixl_build");
+    println!("cargo:rustc-link-lib=dylib=nixl_common");
+    println!("cargo:rustc-link-lib=dylib=serdes");
+    println!("cargo:rustc-link-lib=dylib=stream");
+    println!("cargo:rustc-link-lib=dylib=ucx_utils");
+
+    // Link against C++ standard library
+    println!("cargo:rustc-link-lib=dylib=stdc++");
+
+    // Tell cargo to invalidate the built crate whenever the wrapper changes
+    println!("cargo:rustc-link-search=native={}", nixl_lib_path);
+    println!("cargo:rerun-if-changed=wrapper.h");
+    println!("cargo:rerun-if-changed=wrapper.cpp");
+    println!("cargo:rerun-if-env-changed=HAVE_ETCD");
+}
+
+fn build_stubs(cc_builder: &mut cc::Build) {
+    println!("cargo:warning=Building with stub API - NIXL functions will abort if called");
+
+    cc_builder.file("stubs.cpp");
+
+    cc_builder.compile("nixl_stubs");
+
+    // Link against C++ standard library only
+    println!("cargo:rustc-link-lib=dylib=stdc++");
+
+    // Tell cargo to invalidate the built crate whenever the stubs change
+    println!("cargo:rerun-if-changed=stubs.cpp");
+    println!("cargo:rerun-if-changed=wrapper.h");
+}
+
+fn run_build(use_stub_api: bool) {
+    
 
     let mut cc_builder = cc::Build::new();
     cc_builder
@@ -79,63 +141,9 @@ fn run_build(use_stub_api: bool) {
         .flag("-Wno-unused-variable");
 
     if !use_stub_api {
-        let nixl_root_path =
-            env::var("NIXL_PREFIX").unwrap_or_else(|_| "/opt/nvidia/nvda_nixl".to_string());
-        let nixl_include_path = format!("{}/include", nixl_root_path);
-
-        cc_builder
-            .file("wrapper.cpp")
-            .include(&nixl_include_path)
-            .include("../../api/cpp")
-            .include("../../infra")
-            .include("../../core");
-
-        let arch = get_arch();
-        let nixl_lib_path = get_lib_path(&nixl_root_path, &arch);
-
-        println!("cargo:rustc-link-search={}", nixl_lib_path);
-
-        let etcd_enabled = env::var("HAVE_ETCD").map(|v| v != "0").unwrap_or(false);
-
-        if etcd_enabled {
-            cc_builder.define("HAVE_ETCD", "1");
-        }
-
-        cc_builder.compile("wrapper");
-
-        // Link against NIXL libraries in correct order
-        // Only link against etcd-cpp-api if it's enabled
-        if etcd_enabled {
-            println!("cargo:rustc-link-lib=dylib=etcd-cpp-api");
-        }
-        println!("cargo:rustc-link-lib=dylib=stream");
-        println!("cargo:rustc-link-lib=dylib=nixl_common");
-        println!("cargo:rustc-link-lib=dylib=nixl");
-        println!("cargo:rustc-link-lib=dylib=nixl_build");
-        println!("cargo:rustc-link-lib=dylib=nixl_common");
-        println!("cargo:rustc-link-lib=dylib=serdes");
-        println!("cargo:rustc-link-lib=dylib=stream");
-        println!("cargo:rustc-link-lib=dylib=ucx_utils");
-
-        // Link against C++ standard library
-        println!("cargo:rustc-link-lib=dylib=stdc++");
-
-        // Tell cargo to invalidate the built crate whenever the wrapper changes
-        println!("cargo:rustc-link-search=native={}", nixl_lib_path);
-        println!("cargo:rerun-if-changed=wrapper.h");
-        println!("cargo:rerun-if-changed=wrapper.cpp");
-        println!("cargo:rerun-if-env-changed=HAVE_ETCD");
+        build_nixl(&mut cc_builder);
     } else {
-        cc_builder.file("stubs.cpp");
-
-        cc_builder.compile("nixl_stubs");
-
-        // Link against C++ standard library only
-        println!("cargo:rustc-link-lib=dylib=stdc++");
-
-        // Tell cargo to invalidate the built crate whenever the stubs change
-        println!("cargo:rerun-if-changed=stubs.cpp");
-        println!("cargo:rerun-if-changed=wrapper.h");
+        build_stubs(&mut cc_builder);
     }
 
     // Get the output path for bindings
