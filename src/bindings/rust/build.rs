@@ -129,8 +129,6 @@ fn build_stubs(cc_builder: &mut cc::Build) {
 }
 
 fn run_build(use_stub_api: bool) {
-    
-
     let mut cc_builder = cc::Build::new();
     cc_builder
         .cpp(true)
