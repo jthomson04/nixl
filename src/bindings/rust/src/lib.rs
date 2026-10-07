@@ -56,6 +56,7 @@ use bindings::{
     nixl_capi_opt_args_get_custom_param, nixl_capi_opt_args_get_has_notif,
     nixl_capi_opt_args_get_notif_msg, nixl_capi_opt_args_get_skip_desc_merge,
     nixl_capi_opt_args_set_custom_param, nixl_capi_opt_args_set_has_notif,
+    nixl_capi_opt_args_set_include_conn_info,
     nixl_capi_opt_args_set_notif_msg, nixl_capi_opt_args_set_skip_desc_merge,
     nixl_capi_params_create_iterator, nixl_capi_params_destroy_iterator, nixl_capi_params_is_empty,
     nixl_capi_params_iterator_next, nixl_capi_post_xfer_req, nixl_capi_reg_dlist_add_desc,
@@ -400,6 +401,19 @@ impl OptArgs {
     pub fn set_has_notification(&mut self, has_notification: bool) -> Result<(), NixlError> {
         let status =
             unsafe { nixl_capi_opt_args_set_has_notif(self.inner.as_ptr(), has_notification) };
+        match status {
+            NIXL_CAPI_SUCCESS => Ok(()),
+            NIXL_CAPI_ERROR_INVALID_PARAM => Err(NixlError::InvalidParam),
+            _ => Err(NixlError::BackendError),
+        }
+    }
+
+    /// Include connection information when exporting partial metadata.
+    ///
+    /// Enable this when the receiver has not already imported this agent's
+    /// connection information. This does not add unrelated registrations.
+    pub fn set_include_connection_info(&mut self, include: bool) -> Result<(), NixlError> {
+        let status = unsafe { nixl_capi_opt_args_set_include_conn_info(self.inner.as_ptr(), include) };
         match status {
             NIXL_CAPI_SUCCESS => Ok(()),
             NIXL_CAPI_ERROR_INVALID_PARAM => Err(NixlError::InvalidParam),
