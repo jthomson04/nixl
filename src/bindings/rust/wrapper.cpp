@@ -669,6 +669,15 @@ nixl_capi_opt_args_set_has_notif(nixl_capi_opt_args_t args, bool has_notif)
 }
 
 nixl_capi_status_t
+nixl_capi_opt_args_set_include_conn_info(nixl_capi_opt_args_t args, bool include_conn_info) {
+    if (!args) {
+        return NIXL_CAPI_ERROR_INVALID_PARAM;
+    }
+    args->args.includeConnInfo = include_conn_info;
+    return NIXL_CAPI_SUCCESS;
+}
+
+nixl_capi_status_t
 nixl_capi_opt_args_get_has_notif(nixl_capi_opt_args_t args, bool* has_notif)
 {
   if (!args || !has_notif) {

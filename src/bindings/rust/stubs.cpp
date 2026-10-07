@@ -404,6 +404,13 @@ nixl_capi_opt_args_set_has_notif(nixl_capi_opt_args_t args, bool has_notif) {
 }
 
 nixl_capi_status_t
+nixl_capi_opt_args_set_include_conn_info(nixl_capi_opt_args_t args, bool include_conn_info) {
+    using fn_t = nixl_capi_status_t (*)(nixl_capi_opt_args_t, bool);
+    static fn_t real = (fn_t)resolve("nixl_capi_opt_args_set_include_conn_info");
+    return real(args, include_conn_info);
+}
+
+nixl_capi_status_t
 nixl_capi_opt_args_get_has_notif(nixl_capi_opt_args_t args, bool *has_notif) {
     using fn_t = nixl_capi_status_t (*)(nixl_capi_opt_args_t, bool *);
     static fn_t real = (fn_t)resolve("nixl_capi_opt_args_get_has_notif");
